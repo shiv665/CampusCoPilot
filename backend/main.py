@@ -112,6 +112,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:8000",
         "https://campuscopilot-chhagnbhf9gpaqfm.southeastasia-01.azurewebsites.net",
+        "https://green-hill-069d71800.4.azurestaticapps.net",
     ],
     allow_credentials=True,
     allow_methods=["*"],
