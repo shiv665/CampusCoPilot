@@ -246,23 +246,20 @@ async def upload_syllabus(file: UploadFile = File(...), user_id: str = Depends(g
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename.")
 
-    ext = file.filename.lower()
-    if not (ext.endswith(".pdf") or ext.endswith(".png") or ext.endswith(".jpg") or ext.endswith(".jpeg")):
+    ext = Path(file.filename).suffix.lower()
+    if ext not in (".pdf", ".png", ".jpg", ".jpeg"):
         raise HTTPException(status_code=400, detail="Please upload a PDF, PNG, or JPG file.")
 
     file_bytes = await file.read()
     
-    is_image = not ext.endswith(".pdf")
+    is_image = ext != ".pdf"
 
-    # Store file in MongoDB GridFS (both images and PDFs can be stored as binary)
-
-    # PDF Upload Flow
-    # Store PDF in MongoDB GridFS
+    # Store file in MongoDB GridFS
     file_id = await store_pdf(file.filename, file_bytes, user_id)
-    logger.info("Stored PDF in GridFS: %s (file_id=%s)", file.filename, file_id)
+    logger.info("Stored file in GridFS: %s (file_id=%s)", file.filename, file_id)
 
     # Write to temp file for extraction
-    suffix = ".pdf" if not is_image else ext
+    suffix = ext
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
@@ -752,9 +749,12 @@ async def api_auto_setup(body: AutoSetupBody, user_id: str = Depends(get_current
 async def api_scan_notes(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded.")
-    
-    file_bytes = await file.read()
+
     ext = Path(file.filename).suffix.lower()
+    if ext not in (".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".tiff"):
+        raise HTTPException(status_code=400, detail="Please upload a PDF or image file (PNG, JPG, BMP, TIFF).")
+
+    file_bytes = await file.read()
 
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(file_bytes)

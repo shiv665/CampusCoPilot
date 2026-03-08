@@ -24,45 +24,46 @@ from backend.services.pdf_parser import (
 )
 from backend.services.vector_store import index_chunks, query_similar, reset_collection
 
-import os
-import requests
-import time
+import asyncio
+import httpx
+
+from backend.config import AZURE_DI_ENDPOINT, AZURE_DI_KEY
+
 
 async def extract_text_from_image(file_path: str | Path) -> str:
-    endpoint = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "https://shivansh3286document.cognitiveservices.azure.com/")
-    api_key = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_KEY")
-    if not api_key:
-        raise ValueError("AZURE_DOCUMENT_INTELLIGENCE_KEY is not set in environment.")
+    if not AZURE_DI_ENDPOINT or not AZURE_DI_KEY:
+        raise ValueError("AZURE_DI_ENDPOINT and AZURE_DI_KEY must be set in environment.")
 
     with open(file_path, "rb") as f:
         file_bytes = f.read()
 
-    url = f"{endpoint}/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31"
+    url = f"{AZURE_DI_ENDPOINT.rstrip('/')}/formrecognizer/documentModels/prebuilt-read:analyze?api-version=2023-07-31"
     headers = {
-        "Ocp-Apim-Subscription-Key": api_key,
+        "Ocp-Apim-Subscription-Key": AZURE_DI_KEY,
         "Content-Type": "application/octet-stream"
     }
 
-    response = requests.post(url, headers=headers, data=file_bytes)
-    if response.status_code != 202:
-        raise Exception(f"Azure API Error {response.status_code}: {response.text}")
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(url, headers=headers, content=file_bytes)
+        if response.status_code != 202:
+            raise Exception(f"Azure API Error {response.status_code}: {response.text}")
 
-    operation_location = response.headers.get("Operation-Location")
-    
-    polls = 0
-    while polls < 15:
-        polls += 1
-        poll_resp = requests.get(operation_location, headers={"Ocp-Apim-Subscription-Key": api_key})
-        poll_data = poll_resp.json()
-        
-        status = poll_data.get("status")
-        if status == "succeeded":
-            return poll_data.get("analyzeResult", {}).get("content", "")
-        elif status == "failed":
-            raise Exception("Azure Image Extraction Failed.")
-            
-        time.sleep(1)
-        
+        operation_location = response.headers.get("Operation-Location")
+
+        for _ in range(30):
+            await asyncio.sleep(1)
+            poll_resp = await client.get(
+                operation_location,
+                headers={"Ocp-Apim-Subscription-Key": AZURE_DI_KEY},
+            )
+            poll_data = poll_resp.json()
+
+            status = poll_data.get("status")
+            if status == "succeeded":
+                return poll_data.get("analyzeResult", {}).get("content", "")
+            elif status == "failed":
+                raise Exception("Azure Image Extraction Failed.")
+
     raise Exception("Image extraction polling timed out.")
 
 logger = logging.getLogger("campuscopilot.planner")
