@@ -1,9 +1,7 @@
 /**
  * API client – handles auth token and base URL.
  */
-
-const API_BASE = "";
-
+const API_BASE = import.meta.env.VITE_API_URL || "";
 function getToken() {
   return localStorage.getItem("token");
 }
