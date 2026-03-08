@@ -5,6 +5,12 @@ Now with JWT auth, MongoDB persistence, and per-user sessions.
 
 from __future__ import annotations
 
+# --- Azure App Service SQLite Hack for ChromaDB ---
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+# --------------------------------------------------
+
 import json
 import logging
 import tempfile
