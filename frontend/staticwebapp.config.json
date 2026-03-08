@@ -1,0 +1,15 @@
+{
+    "navigationFallback": {
+        "rewrite": "/index.html",
+        "exclude": [
+            "/images/*.{png,jpg,gif}",
+            "/css/*"
+        ]
+    },
+    "route": [
+        {
+            "route": "/api/*",
+            "rewrite": "https://campuscopilot-chhagnbhf9gpaqfm.southeastasia-01.azurewebsites.net/api/*"
+        }
+    ]
+}

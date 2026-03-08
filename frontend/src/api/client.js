@@ -1,7 +1,7 @@
 /**
  * API client – handles auth token and base URL.
  */
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = "https://campuscopilot-chhagnbhf9gpaqfm.southeastasia-01.azurewebsites.net";
 function getToken() {
   return localStorage.getItem("token");
 }
