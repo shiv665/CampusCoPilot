@@ -1,0 +1,261 @@
+"""
+CampusCoPilot – FastAPI Application
+Lean MVP endpoints for the Planner Agent.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import shutil
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from backend.agents.planner import generate_campaign, process_syllabus, replan_campaign
+from backend.agents.scheduler import build_schedule
+from backend.config import HOST, PORT, UPLOAD_DIR
+from backend.models.schemas import (
+    DisruptionEvent,
+    ReplanRequest,
+    SchedulerInput,
+    StudentConstraints,
+)
+from backend.services.llama_client import get_token_usage
+
+# ── Logging ──────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(name)-30s  %(levelname)-7s  %(message)s",
+)
+logger = logging.getLogger("campuscopilot")
+
+# ── FastAPI app ──────────────────────────────────────────────────────
+app = FastAPI(
+    title="CampusCoPilot",
+    version="0.1.0",
+    description="AI-powered personal study planner – lean MVP with Planner Agent.",
+)
+
+# CORS – allow the frontend served from any origin during dev
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Serve the frontend static files
+_frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+if _frontend_dir.exists():
+    app.mount("/app", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+
+
+# ── In-memory session state (MVP; swap for Redis/DB later) ──────────
+_state: Dict[str, Any] = {
+    "topics": None,
+    "campaign": None,
+    "filename": None,
+    "schedule": None,
+}
+
+
+# ── Health check ─────────────────────────────────────────────────────
+@app.get("/health")
+async def health():
+    return {"status": "ok", "token_usage": get_token_usage()}
+
+
+# ── 1. Upload & parse syllabus ──────────────────────────────────────
+@app.post("/api/upload-syllabus")
+async def upload_syllabus(file: UploadFile = File(...)):
+    """Accept a PDF, extract text, chunk, index, and extract topics via Llama."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Please upload a PDF file.")
+
+    # Save to disk
+    dest = Path(UPLOAD_DIR) / file.filename
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    try:
+        result = await process_syllabus(dest)
+    except Exception as e:
+        logger.exception("Failed to process syllabus")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    _state["topics"] = result["topics"]
+    _state["filename"] = file.filename
+
+    return JSONResponse(
+        content={
+            "filename": file.filename,
+            "total_pages": result["total_pages"],
+            "topics": result["topics"],
+            "raw_text_preview": result["raw_text_preview"],
+            "token_usage": get_token_usage(),
+        }
+    )
+
+
+# ── 2. Generate study campaign ──────────────────────────────────────
+@app.post("/api/generate-campaign")
+async def api_generate_campaign(constraints: Optional[StudentConstraints] = None):
+    """Generate a week-by-week study campaign from the extracted topics."""
+    topics = _state.get("topics")
+    if not topics:
+        raise HTTPException(
+            status_code=400,
+            detail="No topics found. Upload a syllabus first via /api/upload-syllabus.",
+        )
+
+    constraints_dict = constraints.model_dump() if constraints else {}
+
+    try:
+        campaign = await generate_campaign(topics, constraints_dict)
+    except Exception as e:
+        logger.exception("Failed to generate campaign")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Final safety: ensure campaign is a dict, not a string
+    import json as _json
+    for _ in range(5):
+        if isinstance(campaign, str):
+            try:
+                campaign = _json.loads(campaign)
+            except (ValueError, TypeError):
+                break
+        else:
+            break
+
+    # Unwrap if LLM nested the campaign under a wrapper key
+    if isinstance(campaign, dict) and "weekly_plans" not in campaign:
+        for key in ("campaign", "study_campaign", "plan", "data"):
+            val = campaign.get(key)
+            if isinstance(val, str):
+                try:
+                    val = _json.loads(val)
+                except (ValueError, TypeError):
+                    pass
+            if isinstance(val, dict) and "weekly_plans" in val:
+                campaign = val
+                break
+
+    _state["campaign"] = campaign
+
+    return JSONResponse(
+        content={"campaign": campaign, "token_usage": get_token_usage()}
+    )
+
+
+# ── 3. Simulate disruption & replan ────────────────────────────────
+@app.post("/api/replan")
+async def api_replan(req: ReplanRequest):
+    """Replan the campaign after a disruption event."""
+    try:
+        updated = await replan_campaign(
+            campaign=req.campaign.model_dump(),
+            disruption=req.disruption.model_dump(),
+            constraints=req.constraints.model_dump() if req.constraints else None,
+        )
+    except Exception as e:
+        logger.exception("Replan failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    _state["campaign"] = updated
+    return JSONResponse(
+        content={"campaign": updated, "token_usage": get_token_usage()}
+    )
+
+
+# ── 4. Simple disruption mock (for UI button) ──────────────────────
+@app.post("/api/mock-disruption")
+async def mock_disruption(disruption: DisruptionEvent):
+    """
+    Quick endpoint: takes a disruption and replans the stored campaign.
+    """
+    campaign = _state.get("campaign")
+    if not campaign:
+        raise HTTPException(status_code=400, detail="Generate a campaign first.")
+
+    try:
+        updated = await replan_campaign(
+            campaign=campaign,
+            disruption=disruption.model_dump(),
+        )
+    except Exception as e:
+        logger.exception("Mock disruption replan failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    _state["campaign"] = updated
+    return JSONResponse(
+        content={"campaign": updated, "token_usage": get_token_usage()}
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  EVENT SCHEDULER endpoints
+# ═══════════════════════════════════════════════════════════════════════
+
+@app.post("/api/schedule")
+async def api_schedule(payload: SchedulerInput):
+    """
+    Accept a list of events (fixed + dynamic) and return an optimised
+    day-by-day schedule.
+    """
+    events_dicts = [e.model_dump() for e in payload.events]
+    try:
+        result = await build_schedule(
+            events=events_dicts,
+            hours_per_day=payload.available_hours_per_day,
+            day_start=payload.day_start_time,
+            day_end=payload.day_end_time,
+            break_minutes=payload.preferred_break_minutes,
+        )
+    except Exception as e:
+        logger.exception("Scheduler failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    _state["schedule"] = result
+    return JSONResponse(
+        content={"schedule": result, "token_usage": get_token_usage()}
+    )
+
+
+@app.get("/api/schedule")
+async def get_schedule():
+    """Return the last generated schedule."""
+    schedule = _state.get("schedule")
+    if not schedule:
+        raise HTTPException(status_code=404, detail="No schedule generated yet.")
+    return JSONResponse(
+        content={"schedule": schedule, "token_usage": get_token_usage()}
+    )
+
+
+# ── 5. Get current state (for frontend polling) ────────────────────
+@app.get("/api/state")
+async def get_state():
+    return JSONResponse(
+        content={
+            "filename": _state.get("filename"),
+            "has_topics": _state.get("topics") is not None,
+            "has_campaign": _state.get("campaign") is not None,
+            "has_schedule": _state.get("schedule") is not None,
+            "topics": _state.get("topics"),
+            "campaign": _state.get("campaign"),
+            "schedule": _state.get("schedule"),
+            "token_usage": get_token_usage(),
+        }
+    )
+
+
+# ── Entry point ─────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend.main:app", host=HOST, port=PORT, reload=True)

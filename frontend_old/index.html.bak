@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CampusCoPilot – AI Study Planner</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- ─── Header ──────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">🎓</span>
+      <h1>Campus<span class="accent">CoPilot</span></h1>
+    </div>
+    <div class="token-badge" id="tokenBadge" title="Azure token usage tracker">
+      Tokens: <span id="tokenCount">0</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ─── Step 1: Upload ────────────────────────────────────────── -->
+    <section class="card" id="uploadSection">
+      <h2>📄 Step 1 — Upload Your Syllabus</h2>
+      <p class="hint">Upload a PDF syllabus and we'll extract topics automatically.</p>
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".pdf" hidden />
+        <div class="upload-icon">📁</div>
+        <p>Drag & drop a PDF here, or <button class="link-btn" onclick="document.getElementById('fileInput').click()">browse</button></p>
+        <p class="file-name" id="fileName"></p>
+      </div>
+      <button class="btn primary" id="uploadBtn" disabled>Upload & Extract Topics</button>
+      <div class="loader" id="uploadLoader"></div>
+      <div class="error" id="uploadError"></div>
+    </section>
+
+    <!-- ─── Step 2: Topics + Constraints ─────────────────────────── -->
+    <section class="card hidden" id="topicsSection">
+      <h2>📚 Step 2 — Review Topics & Set Constraints</h2>
+      <div id="topicsList" class="topics-grid"></div>
+
+      <h3>Student Constraints</h3>
+      <div class="form-grid">
+        <label>Name
+          <input type="text" id="studentName" value="Student" />
+        </label>
+        <label>Hours/day available
+          <input type="number" id="hoursPerDay" value="4" min="0.5" max="16" step="0.5" />
+        </label>
+        <label>Weak subjects (comma-separated)
+          <input type="text" id="weakSubjects" placeholder="e.g. English, Statistics" />
+        </label>
+        <label>Language preference
+          <input type="text" id="language" value="English" />
+        </label>
+        <label>Exam date
+          <input type="date" id="examDate" />
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="fragmented" />
+          Fragmented schedule (short blocks only)
+        </label>
+        <label class="full-width">Additional notes
+          <textarea id="additionalNotes" rows="2" placeholder="Anything else the planner should know..."></textarea>
+        </label>
+      </div>
+      <button class="btn primary" id="generateBtn">Generate Study Campaign 🚀</button>
+      <div class="loader" id="campaignLoader"></div>
+      <div class="error" id="campaignError"></div>
+    </section>
+
+    <!-- ─── Step 3: Campaign Calendar ────────────────────────────── -->
+    <section class="card hidden" id="campaignSection">
+      <div class="campaign-header">
+        <h2>🗓️ Step 3 — Your Study Campaign</h2>
+        <button class="btn secondary small" id="disruptBtn">⚡ Simulate Disruption</button>
+      </div>
+      <div id="campaignView"></div>
+    </section>
+
+    <!-- ─── Disruption Modal ─────────────────────────────────────── -->
+    <div class="modal-overlay hidden" id="disruptModal">
+      <div class="modal">
+        <h3>⚡ Simulate a Disruption</h3>
+        <label>Event Type
+          <select id="disruptType">
+            <option value="class_canceled">Class Canceled</option>
+            <option value="extra_assignment">Extra Assignment</option>
+            <option value="sick_day">Sick Day</option>
+          </select>
+        </label>
+        <label>Affected Day
+          <input type="text" id="disruptDay" placeholder="e.g. Wednesday – Week 2" />
+        </label>
+        <label>Description (optional)
+          <input type="text" id="disruptDesc" placeholder="e.g. Prof postponed lecture" />
+        </label>
+        <div class="modal-actions">
+          <button class="btn secondary" id="cancelDisrupt">Cancel</button>
+          <button class="btn primary" id="submitDisrupt">Replan 🔄</button>
+        </div>
+        <div class="loader" id="disruptLoader"></div>
+        <div class="error" id="disruptError"></div>
+      </div>
+    </div>
+
+    <!-- ─── Persona presets (Abishek test) ───────────────────────── -->
+    <section class="card" id="personaSection">
+      <h2>🧪 Test with a Preset Persona</h2>
+      <p class="hint">Load pre-configured student constraints to test the planner.</p>
+      <div class="persona-cards">
+        <button class="persona-card" data-persona="abishek">
+          <strong>Abishek</strong>
+          <span>Struggling with English, fragmented schedule, weak in Stats</span>
+        </button>
+        <button class="persona-card" data-persona="priya">
+          <strong>Priya</strong>
+          <span>Top student, 6 hrs/day, exam in 3 weeks</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--  EVENT SCHEDULER SECTION                                       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="section-divider">
+      <span>✦ EVENT SCHEDULER ✦</span>
+    </div>
+
+    <section class="card" id="schedulerSection">
+      <h2>📅 AI Event Scheduler</h2>
+      <p class="hint">
+        Add your events below. <strong>Fixed</strong> events have a locked date &amp; time.
+        <strong>Dynamic</strong> events only need a deadline — the AI will find the best slot.
+      </p>
+
+      <!-- ─── Global scheduler settings ─────────────────────────── -->
+      <div class="form-grid" style="margin-bottom:1.2rem">
+        <label>Hours available / day
+          <input type="number" id="schedHoursPerDay" value="8" min="1" max="18" step="0.5" />
+        </label>
+        <label>Day starts at
+          <input type="time" id="schedDayStart" value="08:00" />
+        </label>
+        <label>Day ends at
+          <input type="time" id="schedDayEnd" value="22:00" />
+        </label>
+        <label>Break between blocks (min)
+          <input type="number" id="schedBreak" value="15" min="0" max="60" step="5" />
+        </label>
+      </div>
+
+      <!-- ─── Event list ────────────────────────────────────────── -->
+      <h3>Events</h3>
+      <div id="eventList"></div>
+      <button class="btn secondary small" id="addEventBtn" style="margin-top:.6rem">+ Add Event</button>
+
+      <!-- ─── Sample data button ────────────────────────────────── -->
+      <button class="btn secondary small" id="loadSampleBtn" style="margin-left:.6rem;margin-top:.6rem">📋 Load Sample Events</button>
+
+      <div style="margin-top:1.2rem">
+        <button class="btn primary" id="generateScheduleBtn">Generate Schedule 🤖</button>
+      </div>
+      <div class="loader" id="scheduleLoader"></div>
+      <div class="error" id="scheduleError"></div>
+    </section>
+
+    <!-- ─── Schedule output ─────────────────────────────────────── -->
+    <section class="card hidden" id="scheduleOutputSection">
+      <h2>📆 Your Optimised Schedule</h2>
+      <div id="scheduleStats" class="schedule-stats"></div>
+      <div id="scheduleWarnings"></div>
+      <div id="scheduleView"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>CampusCoPilot MVP – Built by Team Neurixia &middot; Azure AI Foundry + Llama</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

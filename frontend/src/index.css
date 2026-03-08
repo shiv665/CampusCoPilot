@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* Modern Premium Light Theme */
+:root {
+  --bg-primary: #fcfbf9;
+  /* Cream white */
+  --bg-card: #ffffff;
+  --accent: #4f46e5;
+  /* Indigo */
+  --accent-secondary: #0284c7;
+  /* Light Blue */
+  --text-main: #0f172a;
+  /* Dark Slate */
+  --text-muted: #64748b;
+  /* Medium Slate */
+  --border: rgba(0, 0, 0, 0.08);
+  --success: #059669;
+  --error: #dc2626;
+  --warning: #d97706;
+}
+
+body {
+  @apply text-slate-800 font-sans antialiased;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  /* Fallback animated gradient if 3D context is lost */
+  background-image: radial-gradient(circle at 15% 50%, rgba(79, 70, 229, 0.05), transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(2, 132, 199, 0.05), transparent 40%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+/* Scrollbar - Sleek and hidden until hover */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Premium Glass effect for cards */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  /* Slight top highlight */
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 32px rgba(79, 70, 229, 0.08);
+  /* Indigo slight glow on hover */
+  transform: translateY(-2px);
+}
+
+/* Interactive elements */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:active {
+  transform: scale(0.96);
+}
+
+/* Gradient Text utility */
+.text-gradient {
+  background: linear-gradient(135deg, #a78bfa 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
