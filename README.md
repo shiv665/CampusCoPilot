@@ -1,4 +1,4 @@
-# 🎓 CampusCoPilot – AI-Powered Study Planner (Lean MVP)
+# CampusCoPilot – AI-Powered Study Planner (Lean MVP)
 
 **Team Neurixia** · Built on Azure AI Foundry + Llama
 
@@ -6,7 +6,7 @@
 
 ## What It Does
 
-A student uploads a **syllabus PDF** → CampusCoPilot extracts topics → the **Planner Agent** (powered by Llama on Azure) generates a **personalized, week-by-week study campaign** with daily tasks, time-slots, and priorities → disruptions (canceled class, sick day) can be simulated and the plan **dynamically re-plans** itself.
+A student uploads a **syllabus PDF** -> CampusCoPilot extracts topics -> the **Planner Agent** (powered by Llama on Azure) generates a **personalized, week-by-week study campaign** with daily tasks, time-slots, and priorities -> disruptions (canceled class, sick day) can be simulated and the plan **dynamically re-plans** itself.
 
 ---
 
@@ -120,7 +120,7 @@ The frontend is served at **http://localhost:8000/app**
 3. Review extracted topics
 4. Set student constraints (or click a **preset persona** like Abishek)
 5. Click **Generate Study Campaign**
-6. Simulate a disruption with the ⚡ button
+6. Simulate a disruption with the lightning button
 
 ---
 
@@ -143,7 +143,8 @@ The frontend is served at **http://localhost:8000/app**
 |--------|-------|-------|
 | **Pratham** | Agent logic & orchestration | `agents/planner.py`, `agents/prompts.py` |
 | **Himanshu** | Prompt engineering (structured JSON output) | `agents/prompts.py`, `services/llama_client.py` |
-| **Priyanshu** | Frontend UI (upload → calendar) | `frontend/*` |
+| **Priyanshu** | Frontend UI (upload -> calendar) | `frontend/*` |
+| **Shivansh** | Full-Stack Architecture, Deployment & AI Integration | Full Codebase |
 
 ---
 
@@ -182,4 +183,4 @@ This tests whether the planner correctly prioritizes tasks, uses simpler languag
 
 ---
 
-*Built with ❤️ by Team Neurixia for the Azure AI Hackathon*
+*Built with dedication by Team Neurixia for the Azure AI Hackathon*
