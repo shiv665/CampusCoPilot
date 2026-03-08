@@ -1,17 +1,15 @@
-# Neurixia - Python dependencies (v3 full-feature)
+azure-search-documents>=11.4.0        
+pysqlite3-binary==0.5.2.post3
 fastapi>=0.110,<1
 uvicorn[standard]>=0.29,<1
 python-dotenv>=1.0,<2
-python-multipart>=0.0.9     # required for file uploads in FastAPI
+python-multipart>=0.0.9     
 httpx>=0.27,<1              # async HTTP client for Azure AI calls
 PyPDF2>=3.0,<4              # PDF text extraction (fallback)
 chromadb>=0.4,<1            # local vector store (fallback)
 pydantic[email]>=2.0,<3
 motor>=3.3,<4               # async MongoDB driver (works with Cosmos DB)
 python-jose[cryptography]>=3.3,<4  # JWT tokens
-bcrypt>=4.0,<5              # password hashing (direct, no passlib)
+bcrypt>=4.0,<5              
+azure-ai-documentintelligence>=1.0.0  
 
-# Azure services (optional - graceful fallback when not configured)
-azure-ai-documentintelligence>=1.0.0  # Azure Document Intelligence for PDF/OCR
-azure-search-documents>=11.4.0        # Azure AI Search for RAG vector store
-pysqlite3-binary==0.5.2.post3
