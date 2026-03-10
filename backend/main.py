@@ -890,13 +890,21 @@ async def api_generate_flashcards(body: FlashcardBody, user_id: str = Depends(ge
 
 @app.post("/api/quiz/result")
 async def api_save_quiz_result(body: SaveQuizResultBody, user_id: str = Depends(get_current_user_id)):
-    result = await save_quiz_result(user_id, body.model_dump())
+    try:
+        result = await save_quiz_result(user_id, body.model_dump())
+    except Exception as e:
+        logger.exception("Failed to save quiz result")
+        raise HTTPException(status_code=500, detail=str(e))
     return {"saved": True, "result": result}
 
 
 @app.get("/api/quiz/history")
 async def api_quiz_history(user_id: str = Depends(get_current_user_id)):
-    results = await get_quiz_results(user_id)
+    try:
+        results = await get_quiz_results(user_id)
+    except Exception as e:
+        logger.exception("Failed to fetch quiz history")
+        raise HTTPException(status_code=500, detail=str(e))
     return {"results": results}
 
 

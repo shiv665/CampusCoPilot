@@ -40,7 +40,7 @@ def decode_access_token(token: str) -> dict:
 _bearer = HTTPBearer(auto_error=False)  # auto_error=False so missing token won't 403
 
 # ═══ DEMO BYPASS: always return test user id ═══
-TEST_USER_ID = "000000000000000000judge1"
+TEST_USER_ID = "000000000000000000aabb01"
 
 async def get_current_user_id(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),

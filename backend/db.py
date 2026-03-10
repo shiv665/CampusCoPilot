@@ -71,10 +71,13 @@ def serialize_doc(doc: dict) -> dict:
             doc[key] = str(val)
         elif isinstance(val, datetime):
             doc[key] = val.isoformat()
+        elif isinstance(val, dict):
+            doc[key] = serialize_doc(val)
         elif isinstance(val, list):
             doc[key] = [
                 str(v) if isinstance(v, ObjectId)
                 else v.isoformat() if isinstance(v, datetime)
+                else serialize_doc(v) if isinstance(v, dict)
                 else v
                 for v in val
             ]
@@ -128,6 +131,10 @@ async def ensure_indexes():
         await db.sessions.create_index([("user_id", 1), ("updated_at", -1)])
     except Exception as e:
         logger.debug("sessions compound index: %s", e)
+    try:
+        await db.quiz_results.create_index([("user_id", 1), ("created_at", -1)])
+    except Exception as e:
+        logger.debug("quiz_results compound index: %s", e)
     logger.info("Cosmos DB indexes ensured.")
 
 
