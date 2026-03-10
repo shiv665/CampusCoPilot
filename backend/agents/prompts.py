@@ -492,7 +492,7 @@ GENERATE_QUIZ_PROMPT = """Generate a quiz for the following topic.
 
 ### Relevant context (RAG)
 {rag_context}
-
+ CO
 IMPORTANT: ALL questions MUST be multiple choice ("mcq") with exactly 4 options (A, B, C, D). Do NOT generate short_answer, descriptive, or true_false questions.
 
 Return a JSON object:

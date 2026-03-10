@@ -103,7 +103,7 @@ export default function Sessions() {
               </div>
 
               <div className="flex gap-2 shrink-0">
-                {s.campaign && (
+                {s.campaign ? (
                   <Link
                     to={
                       s._type === "semester"
@@ -114,7 +114,22 @@ export default function Sessions() {
                   >
                     View Campaign
                   </Link>
+                ) : (
+                  <Link
+                    to="/planner"
+                    state={{ resumePlanId: s._id, resumeType: s._type }}
+                    className="px-3 py-1.5 bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs rounded-lg transition-colors"
+                  >
+                    Continue Editing
+                  </Link>
                 )}
+                <Link
+                  to="/planner"
+                  state={{ resumePlanId: s._id, resumeType: s._type, editMode: true }}
+                  className="px-3 py-1.5 bg-slate-600/80 hover:bg-slate-500 text-white text-xs rounded-lg transition-colors"
+                >
+                  Edit
+                </Link>
                 <button
                   onClick={() => handleDelete(s)}
                   className="px-3 py-1.5 bg-red-600/80 hover:bg-red-500 text-white text-xs rounded-lg transition-colors"

@@ -13,7 +13,6 @@ export default function Campaign() {
   const [error, setError] = useState("");
   const [isSemester, setIsSemester] = useState(false);
 
-  /* disruption modal */
   const [showDisruption, setShowDisruption] = useState(false);
   const [disruptionForm, setDisruptionForm] = useState({
     event_type: "sick_day",
@@ -21,6 +20,9 @@ export default function Campaign() {
     description: "",
   });
   const [replanning, setReplanning] = useState(false);
+
+  /* completed tasks local state */
+  const [completedTasks, setCompletedTasks] = useState(new Set());
 
   // Refs for animation
   const containerRef = useRef(null);
@@ -95,6 +97,25 @@ export default function Campaign() {
       setError(e.message);
     } finally {
       setReplanning(false);
+    }
+  };
+
+  const handleCompleteTask = async (taskObj, durationMinutes, taskKey) => {
+    try {
+      let cleanId = sessionId;
+      if (sessionId?.startsWith("semester-")) cleanId = sessionId.replace("semester-", "");
+
+      const taskName = typeof (taskObj.task ?? taskObj) === "string" ? (taskObj.task ?? taskObj) : JSON.stringify(taskObj.task ?? taskObj);
+      const subjectTopic = typeof taskObj.subject === "string" ? taskObj.subject : "";
+
+      await api.completeTask(taskName, subjectTopic, cleanId, Number(durationMinutes));
+      setCompletedTasks(prev => {
+        const next = new Set(prev);
+        next.add(taskKey);
+        return next;
+      });
+    } catch (e) {
+      alert("Failed to log task: " + e.message);
     }
   };
 
@@ -174,7 +195,7 @@ export default function Campaign() {
           className="group relative overflow-hidden px-5 py-3 bg-amber-600/90 hover:bg-amber-500 text-white rounded-xl text-sm font-bold transition-all shadow-[0_4px_15px_rgba(217,119,6,0.3)] border border-amber-400/30 hover:-translate-y-1"
         >
           <span className="relative z-10 flex items-center gap-2">
-            <span className="text-lg">⚡</span> Simulate Disruption
+            <span className="text-lg">⚡</span> Disruption
           </span>
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
         </button>
@@ -202,7 +223,14 @@ export default function Campaign() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 relative z-10">
               {(week.days ?? []).filter(d => d && d.day).map((day, di) => (
-                <DayCard key={di} day={day} index={di} />
+                <DayCard
+                  key={di}
+                  weekIdx={wi}
+                  day={day}
+                  index={di}
+                  completedTasks={completedTasks}
+                  onComplete={handleCompleteTask}
+                />
               ))}
             </div>
           </div>
@@ -248,7 +276,7 @@ export default function Campaign() {
                 <input
                   value={disruptionForm.affected_day}
                   onChange={(e) => setDisruptionForm((p) => ({ ...p, affected_day: e.target.value }))}
-                  placeholder="e.g. Monday – Week 2"
+                  placeholder="Enter affected day"
                   className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 shadow-sm transition-shadow hover:border-amber-300"
                 />
               </div>
@@ -258,7 +286,7 @@ export default function Campaign() {
                 <textarea
                   value={disruptionForm.description}
                   onChange={(e) => setDisruptionForm((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Details about the disruption..."
+                  placeholder="Enter disruption details..."
                   rows="2"
                   className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 shadow-sm transition-shadow hover:border-amber-300 resize-none"
                 />
@@ -296,7 +324,10 @@ export default function Campaign() {
 }
 
 /* ── Day card ── */
-function DayCard({ day, index }) {
+function DayCard({ weekIdx, day, index, completedTasks, onComplete }) {
+  const [activeTaskNode, setActiveTaskNode] = useState(null);
+  const [duration, setDuration] = useState(30);
+
   return (
     <div className="group bg-white/80 hover:bg-white border border-slate-200 hover:border-indigo-300 rounded-2xl p-6 space-y-5 transition-all duration-300 hover:-translate-y-1 shadow-sm hover:shadow-lg relative overflow-hidden backdrop-blur-md">
       {/* Decorative gradient blob */}
@@ -336,26 +367,58 @@ function DayCard({ day, index }) {
             );
           }
 
+          const taskKey = `w${weekIdx}d${index}t${ti}`;
+          const isCompleted = completedTasks.has(taskKey);
+
           return (
-            <div key={ti} className="flex flex-col gap-1 text-sm bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 transition-colors shadow-sm">
+            <div key={ti} className={`flex flex-col gap-1 text-sm bg-white hover:bg-slate-50 border ${isCompleted ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200'} rounded-xl px-4 py-3 transition-colors shadow-sm`}>
               <div className="flex items-center justify-between">
                 <span className="text-indigo-600 font-medium font-mono text-xs bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
                   {typeof task.time_slot === 'string' ? task.time_slot : (task.time_slot ? JSON.stringify(task.time_slot) : "Unscheduled")}
                 </span>
-                {task.priority === "high" && (
+                {task.priority === "high" && !isCompleted && (
                   <span className="text-rose-600 text-xs font-bold bg-rose-50 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm border border-rose-100">
                     <span className="text-sm">🔥</span> High Priority
                   </span>
                 )}
+                {isCompleted && (
+                  <span className="text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    ✓ Completed
+                  </span>
+                )}
               </div>
 
-              <div className="text-slate-700 mt-2 leading-relaxed">
+              <div className={`text-slate-700 mt-2 leading-relaxed ${isCompleted ? 'opacity-60' : ''}`}>
                 {task.subject && <span className="text-indigo-600 font-bold mr-2 text-xs uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded inline-block mb-1">{typeof task.subject === 'string' ? task.subject : JSON.stringify(task.subject)}</span>}<br />
                 <span className="font-medium text-[15px]">{typeof (task.task ?? task) === 'string' ? (task.task ?? task) : JSON.stringify(task.task ?? task)}</span>
               </div>
-              {task.resource_hint && (
+              {task.resource_hint && !isCompleted && (
                 <div className="mt-2 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 flex items-start gap-2">
                   <span className="text-amber-500 mt-0.5">💡</span> <span>{typeof task.resource_hint === 'string' ? task.resource_hint : JSON.stringify(task.resource_hint)}</span>
+                </div>
+              )}
+
+              {!isCompleted && !isBreak && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  {activeTaskNode === ti ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-slate-500 font-medium">Time spent (mins):</label>
+                        <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min={1} className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-xs" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => {
+                          onComplete(task, duration, taskKey);
+                          setActiveTaskNode(null);
+                        }} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium transition-colors">Confirm</button>
+                        <button onClick={() => setActiveTaskNode(null)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-xs font-medium transition-colors">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setActiveTaskNode(ti)} className="text-xs text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                      + Mark Complete
+                    </button>
+                  )}
                 </div>
               )}
             </div>

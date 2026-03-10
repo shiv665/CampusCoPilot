@@ -85,7 +85,7 @@ export default function Scheduler() {
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input label="Event Name" value={ev.event_name} onChange={(e) => updateEvent(idx, "event_name", e.target.value)} placeholder="Math Homework" />
+              <Input label="Event Name" value={ev.event_name} onChange={(e) => updateEvent(idx, "event_name", e.target.value)} placeholder="Enter event name" />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Difficulty</label>
                 <select value={ev.difficulty} onChange={(e) => updateEvent(idx, "difficulty", e.target.value)}
@@ -160,8 +160,8 @@ export default function Scheduler() {
                       {slot.is_fixed && <span className="ml-2 text-xs font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">📌 Fixed</span>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 font-bold rounded shadow-sm border ${slot.difficulty === "hard" ? "bg-rose-50 text-rose-700 border-rose-200" :
-                        slot.difficulty === "medium" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                          "bg-green-50 text-green-700 border-green-200"
+                      slot.difficulty === "medium" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                        "bg-green-50 text-green-700 border-green-200"
                       }`}>{slot.difficulty}</span>
                   </div>
                 ))}

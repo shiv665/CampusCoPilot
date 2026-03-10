@@ -145,7 +145,7 @@ export default function Pomodoro() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Task</label>
-            <input value={task} onChange={(e) => setTask(e.target.value)} placeholder="What are you working on?"
+            <input value={task} onChange={(e) => setTask(e.target.value)} placeholder="Enter current task"
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <div>

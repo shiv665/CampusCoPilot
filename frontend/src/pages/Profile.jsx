@@ -99,20 +99,20 @@ export default function Profile() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input label="University" value={profile.university}
-            onChange={(e) => setProfile({ ...profile, university: e.target.value })} placeholder="MIT, Stanford…" />
+            onChange={(e) => setProfile({ ...profile, university: e.target.value })} placeholder="Enter university name" />
           <Input label="Major" value={profile.major}
-            onChange={(e) => setProfile({ ...profile, major: e.target.value })} placeholder="Computer Science" />
+            onChange={(e) => setProfile({ ...profile, major: e.target.value })} placeholder="Enter major/branch" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input label="Semester" value={profile.semester}
-            onChange={(e) => setProfile({ ...profile, semester: e.target.value })} placeholder="e.g. 5th" />
+            onChange={(e) => setProfile({ ...profile, semester: e.target.value })} placeholder="Enter semester number" />
           <Input label="CGPA Target" type="number" step="0.1" min="0" max="10" value={profile.cgpa_target}
-            onChange={(e) => setProfile({ ...profile, cgpa_target: e.target.value })} placeholder="e.g. 9.0" />
+            onChange={(e) => setProfile({ ...profile, cgpa_target: e.target.value })} placeholder="Enter target CGPA" />
         </div>
 
         <Input label="Target Companies (comma-separated)" value={profile.target_companies}
-          onChange={(e) => setProfile({ ...profile, target_companies: e.target.value })} placeholder="Google, Microsoft, Amazon…" />
+          onChange={(e) => setProfile({ ...profile, target_companies: e.target.value })} placeholder="Enter target companies" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>

@@ -108,7 +108,7 @@ export default function MicroTutor() {
       {/* Topic Input */}
       {tab !== "history" && (
         <div className="glass p-5 space-y-4">
-          <Input label="Topic" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Quantum Mechanics" />
+          <Input label="Topic" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Enter topic" />
           {tab === "quiz" && (
             <div className="grid grid-cols-2 gap-4">
               <div>

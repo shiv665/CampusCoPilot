@@ -43,7 +43,7 @@ export default function Register() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Shivansh Yadav"
+              placeholder="Enter your full name"
             />
           </div>
           <div>
@@ -54,7 +54,7 @@ export default function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="you@example.com"
+              placeholder="Enter email address"
             />
           </div>
           <div>
@@ -66,7 +66,7 @@ export default function Register() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Min 6 characters"
+              placeholder="Enter password"
             />
           </div>
 

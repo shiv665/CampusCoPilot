@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 const SEMESTER_TYPES = ["autumn", "spring"];
 
 export default function Planner() {
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState(0); // 0=choose mode, 1=semester setup, 2=add subjects, 3=review+generate
 
   /* ── past plans ── */
@@ -28,8 +31,18 @@ export default function Planner() {
   const [uploadError, setUploadError] = useState("");
 
   /* ── campaign gen (Step 3) ── */
+  const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const [timetable, setTimetable] = useState(
+    Object.fromEntries(WEEKDAYS.map((d) => [d, ""]))
+  );
+  const [timetableFile, setTimetableFile] = useState(null);
+  const [timetableParsing, setTimetableParsing] = useState(false);
+  const [timetableRaw, setTimetableRaw] = useState("");
+  const [calendarFile, setCalendarFile] = useState(null);
+  const [calendarParsing, setCalendarParsing] = useState(false);
+  const [calendarHolidays, setCalendarHolidays] = useState("");
   const [constraints, setConstraints] = useState({
-    name: "", available_hours_per_day: 4, language_preference: "English",
+    available_hours_per_day: 4, language_preference: "English",
     fragmented_schedule: false, study_style: "balanced", target_career_track: "Core Engineering", additional_notes: "",
     additional_events: [],
   });
@@ -77,6 +90,33 @@ export default function Planner() {
   useEffect(() => {
     fetchPastPlans();
   }, []);
+
+  /* ── Auto-resume from Sessions page ── */
+  useEffect(() => {
+    const st = location.state;
+    if (!st?.resumePlanId) return;
+    const resumePlan = async () => {
+      try {
+        if (st.resumeType === "semester") {
+          const res = await api.getSemesterPlan(st.resumePlanId);
+          const p = res.plan ?? res;
+          setPlanId(p._id);
+          setSubjects(p.subjects || []);
+          setSemesterInfo({ university: p.university || "", branch: p.branch || "", semester_type: p.semester_type || "autumn", semester_number: p.semester_number || "", semester_start: p.semester_start || "", midterm_start: p.midterm_start || "", midterm_end: p.midterm_end || "", endterm_start: p.endterm_start || "", endterm_end: p.endterm_end || "", dates_released: p.dates_released || false });
+          setStep(st.editMode ? 2 : (p.subjects?.length > 0 ? 3 : 2));
+        } else {
+          const res = await api.getSession(st.resumePlanId);
+          const s = res.session ?? res;
+          setShowLegacy(true);
+          setStep(-1);
+          setLegacyResult({ session_id: s._id, pdf_filename: s.filename, topics: s.topics, total_pages: s.total_pages, filename: s.filename });
+        }
+      } catch { /* ignore */ }
+    };
+    resumePlan();
+    // Clear the location state so refreshing doesn't re-trigger
+    window.history.replaceState({}, document.title);
+  }, [location.state]);
 
   /* ──────────── Step 1: Create Semester Plan ──────────── */
   const handleCreatePlan = async () => {
@@ -179,15 +219,21 @@ export default function Planner() {
     setGenerating(true);
     setGenError("");
     try {
+      // Build unavailable_hours from structured timetable
+      const timetableLines = [
+        ...WEEKDAYS.filter((d) => timetable[d]?.trim()).map((d) => `${d}: ${timetable[d].trim()}`),
+        timetableRaw
+      ].filter(Boolean).join(". ");
+      const unavailable = [timetableLines, calendarHolidays].filter(Boolean).join("\n\nAcademic Calendar:\n");
+
       const payload = {
-        name: constraints.name || "Student",
         available_hours_per_day: Number(constraints.available_hours_per_day) || 4,
         language_preference: constraints.language_preference || "English",
         fragmented_schedule: constraints.fragmented_schedule,
         study_style: constraints.study_style || "balanced",
         target_career_track: constraints.target_career_track || "Core Engineering",
         additional_notes: constraints.additional_notes || null,
-        unavailable_hours: constraints.unavailable_hours || null,
+        unavailable_hours: unavailable || null,
       };
       await api.generateSemesterCampaign(planId, payload);
       navigate(`/campaign/semester-${planId}`);
@@ -224,7 +270,7 @@ export default function Planner() {
     e.preventDefault();
     setLegacyDragOver(false);
     const dropped = e.dataTransfer?.files?.[0];
-    if (dropped?.type === "application/pdf") setLegacyFile(dropped);
+    if (dropped?.type === "application/pdf" || dropped?.type?.startsWith("image/")) setLegacyFile(dropped);
   }, []);
 
   const handleLegacyGenerate = async () => {
@@ -232,14 +278,21 @@ export default function Planner() {
     setLegacyGenerating(true);
     setLegacyGenError("");
     try {
+      const timetableLines = [
+        ...WEEKDAYS.filter((d) => timetable[d]?.trim()).map((d) => `${d}: ${timetable[d].trim()}`),
+        timetableRaw
+      ].filter(Boolean).join(". ");
+      const unavailable = [timetableLines, calendarHolidays].filter(Boolean).join("\n\nAcademic Calendar:\n");
+
       const payload = {
-        name: legacyConstraints.name || "Student",
+        name: user?.name || "Student",
         available_hours_per_day: Number(legacyConstraints.available_hours_per_day) || 4,
         weak_subjects: legacyConstraints.weak_subjects ? legacyConstraints.weak_subjects.split(",").map((s) => s.trim()).filter(Boolean) : [],
         language_preference: legacyConstraints.language_preference || "English",
         fragmented_schedule: legacyConstraints.fragmented_schedule,
         exam_date: legacyConstraints.exam_date || null,
         additional_notes: legacyConstraints.additional_notes || null,
+        unavailable_hours: unavailable || null,
       };
       await api.generateCampaign(legacyResult.session_id, payload);
       navigate(`/campaign/${legacyResult.session_id}`);
@@ -352,10 +405,10 @@ export default function Planner() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="University Name" value={semesterInfo.university}
               onChange={(e) => setSemesterInfo({ ...semesterInfo, university: e.target.value })}
-              placeholder="e.g. IIT Delhi, MIT" />
+              placeholder="Enter university name" />
             <Input label="Branch / Department" value={semesterInfo.branch}
               onChange={(e) => setSemesterInfo({ ...semesterInfo, branch: e.target.value })}
-              placeholder="e.g. Computer Science" />
+              placeholder="Enter branch or department" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -369,7 +422,7 @@ export default function Planner() {
             </div>
             <Input label="Semester Number" value={semesterInfo.semester_number}
               onChange={(e) => setSemesterInfo({ ...semesterInfo, semester_number: e.target.value })}
-              placeholder="e.g. 5th" />
+              placeholder="Enter semester number" />
             <Input label="Semester Start Date" type="date" value={semesterInfo.semester_start}
               onChange={(e) => setSemesterInfo({ ...semesterInfo, semester_start: e.target.value })} />
           </div>
@@ -479,12 +532,12 @@ export default function Planner() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               <Input label="Subject Name" value={newSubject.name}
                 onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
-                placeholder="e.g. Mathematics III" />
+                placeholder="Enter subject name" />
               <Input label="Target Date (Optional)" type="date" value={newSubject.target_completion_date}
                 onChange={(e) => setNewSubject({ ...newSubject, target_completion_date: e.target.value })} />
               <Input label="Credits (opt)" type="number" min={0} max={10} value={newSubject.credits}
                 onChange={(e) => setNewSubject({ ...newSubject, credits: e.target.value })}
-                placeholder="e.g. 4" />
+                placeholder="Enter credits" />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Strength</label>
                 <select value={newSubject.strength} onChange={(e) => setNewSubject({ ...newSubject, strength: e.target.value })} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -603,11 +656,104 @@ export default function Planner() {
             </div>
           </div>
 
-          {/* Constraints form */}
+          {/* Weekly Class Timetable */}
+          <div className="glass p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-300">🗓️ Weekly Class Timetable (Mon–Fri)</h3>
+              <p className="text-xs text-slate-400 mt-1">Provide your class/lab timings so the AI avoids scheduling study sessions during classes. Upload an image/PDF of your timetable to auto-extract text.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="file" accept=".pdf,image/png,image/jpeg"
+                className="text-sm font-medium text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-bold hover:file:bg-slate-200 cursor-pointer"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setTimetableFile(f);
+                  setTimetableParsing(true);
+                  try {
+                    const res = await api.scanNotes(f);
+                    const text = res.text || res.extracted_text || "";
+                    setTimetableRaw(text);
+                  } catch { /* ignore */ }
+                  finally { setTimetableParsing(false); }
+                }}
+              />
+              {timetableFile && <span className="text-xs font-bold text-green-600">📎 {timetableFile.name}</span>}
+              {timetableParsing && <span className="text-xs text-amber-500 animate-pulse">Extracting…</span>}
+            </div>
+
+            {timetableRaw || timetableFile ? (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Extracted Timetable Data</label>
+                <textarea
+                  value={timetableRaw}
+                  onChange={(e) => setTimetableRaw(e.target.value)}
+                  placeholder="Raw timetable data..."
+                  rows={4}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-sm"
+                />
+              </div>
+            ) : null}
+
+            <div className="space-y-3 pt-2 border-t border-slate-200/50 mt-4">
+              {WEEKDAYS.map((day) => (
+                <div key={day} className="flex items-start gap-3">
+                  <span className="w-24 shrink-0 text-sm font-bold text-slate-600 pt-2.5">{day}</span>
+                  <input
+                    value={timetable[day]}
+                    onChange={(e) => setTimetable((prev) => ({ ...prev, [day]: e.target.value }))}
+                    placeholder="Enter class schedule (e.g. 9:00-11:00 Math)"
+                    className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Academic Calendar Upload */}
+          <div className="glass p-5 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-300">📆 Academic Calendar (Optional)</h3>
+              <p className="text-xs text-slate-400 mt-1">Upload your university academic calendar (PDF/image) to auto-detect holidays, exam dates, and events. Or type them manually.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="file" accept=".pdf,image/png,image/jpeg"
+                className="text-sm font-medium text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-bold hover:file:bg-slate-200 cursor-pointer"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setCalendarFile(f);
+                  setCalendarParsing(true);
+                  try {
+                    const res = await api.scanNotes(f);
+                    const text = res.text || res.extracted_text || "";
+                    setCalendarHolidays(text);
+                  } catch { /* ignore */ }
+                  finally { setCalendarParsing(false); }
+                }}
+              />
+              {calendarFile && <span className="text-xs font-bold text-green-600">📎 {calendarFile.name}</span>}
+              {calendarParsing && <span className="text-xs text-amber-500 animate-pulse">Extracting…</span>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Holidays & Key Dates</label>
+              <textarea
+                value={calendarHolidays}
+                onChange={(e) => setCalendarHolidays(e.target.value)}
+                placeholder="Enter holidays and key dates"
+                rows={3}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Study Preferences */}
           <div className="glass p-5 space-y-4">
             <h3 className="text-sm font-semibold text-slate-300">⚙️ Study Preferences</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Your Name" value={constraints.name} onChange={updateField("name")} placeholder="Student" />
               <Input label="Hours / Day" type="number" min={0.5} max={16} step={0.5}
                 value={constraints.available_hours_per_day} onChange={updateField("available_hours_per_day")} />
               <Input label="Language" value={constraints.language_preference} onChange={updateField("language_preference")} />
@@ -645,13 +791,7 @@ export default function Planner() {
               <span className="text-xs text-slate-500 font-normal italic group-hover:text-indigo-300 transition-colors">(Splits study time into smaller 30-45m chunks)</span>
             </label>
             <Input label="Additional Notes" value={constraints.additional_notes || ""} onChange={updateField("additional_notes")}
-              placeholder="Anything else the AI should know…" />
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Unavailability / Fixed Timetable (Lunch, Regular Classes)</label>
-              <textarea value={constraints.unavailable_hours || ""} onChange={updateField("unavailable_hours")}
-                placeholder="e.g. Classes run from 9 AM to 3 PM every day. Lunch 1 PM-2 PM. Do not schedule study tasks during these blocks." rows={3}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
-            </div>
+              placeholder="Enter additional notes or constraints" />
           </div>
 
           {/* Extra Events (Unified Smart Scheduler) */}
@@ -678,7 +818,7 @@ export default function Planner() {
                     const next = [...constraints.additional_events];
                     next[i].event_name = e.target.value;
                     setConstraints({ ...constraints, additional_events: next });
-                  }} placeholder="Weekly Meeting, Workout, etc." />
+                  }} placeholder="Enter event name" />
 
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Type</label>
@@ -713,7 +853,7 @@ export default function Planner() {
                     }} />
                   ) : (
                     <>
-                      <Input label="Date (or Day of week)" value={ev.fixed_date} placeholder="YYYY-MM-DD or 'Every Monday'" onChange={(e) => {
+                      <Input label="Date (or Day of week)" value={ev.fixed_date} placeholder="Enter date or frequency" onChange={(e) => {
                         const next = [...constraints.additional_events];
                         next[i].fixed_date = e.target.value;
                         setConstraints({ ...constraints, additional_events: next });
@@ -768,12 +908,12 @@ export default function Planner() {
                   }`}
                 onClick={() => document.getElementById("legacy-pdf-input").click()}
               >
-                <input id="legacy-pdf-input" type="file" accept=".pdf" className="hidden"
+                <input id="legacy-pdf-input" type="file" accept=".pdf, image/png, image/jpeg" className="hidden"
                   onChange={(e) => setLegacyFile(e.target.files?.[0] ?? null)} />
                 {legacyFile ? (
                   <p className="text-indigo-300 font-medium">📎 {legacyFile.name}</p>
                 ) : (
-                  <p className="text-slate-400">Drag & drop a PDF here, or <span className="text-indigo-400 underline">click to choose</span></p>
+                  <p className="text-slate-400">Drag & drop a PDF/Image here, or <span className="text-indigo-400 underline">click to choose</span></p>
                 )}
               </div>
               {legacyError && <p className="text-red-400 text-sm">{legacyError}</p>}
@@ -803,12 +943,94 @@ export default function Planner() {
               </div>
 
               <div className="glass p-6 space-y-4">
+                <h2 className="text-lg font-semibold">🗓️ Weekly Class Timetable (Mon–Fri)</h2>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file" accept=".pdf,image/png,image/jpeg"
+                    className="text-sm font-medium text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-bold hover:file:bg-slate-200 cursor-pointer"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setTimetableFile(f);
+                      setTimetableParsing(true);
+                      try {
+                        const res = await api.scanNotes(f);
+                        const text = res.text || res.extracted_text || "";
+                        setTimetableRaw(text);
+                      } catch { /* ignore */ }
+                      finally { setTimetableParsing(false); }
+                    }}
+                  />
+                  {timetableFile && <span className="text-xs font-bold text-green-600">📎 {timetableFile.name}</span>}
+                  {timetableParsing && <span className="text-xs text-amber-500 animate-pulse">Extracting…</span>}
+                </div>
+
+                {timetableRaw || timetableFile ? (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Extracted Timetable Data</label>
+                    <textarea
+                      value={timetableRaw}
+                      onChange={(e) => setTimetableRaw(e.target.value)}
+                      placeholder="Raw timetable data..."
+                      rows={4}
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-sm"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="space-y-3 pt-2 border-t border-slate-200/50 mt-4">
+                  {WEEKDAYS.map((day) => (
+                    <div key={day} className="flex items-start gap-3">
+                      <span className="w-24 shrink-0 text-sm font-bold text-slate-600 pt-2.5">{day}</span>
+                      <input
+                        value={timetable[day]}
+                        onChange={(e) => setTimetable((prev) => ({ ...prev, [day]: e.target.value }))}
+                        placeholder="Enter class schedule"
+                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="glass p-6 space-y-4">
+                <h2 className="text-lg font-semibold">📆 Academic Calendar</h2>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file" accept=".pdf,image/png,image/jpeg"
+                    className="text-sm font-medium text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-bold hover:file:bg-slate-200 cursor-pointer"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setCalendarFile(f);
+                      setCalendarParsing(true);
+                      try {
+                        const res = await api.scanNotes(f);
+                        const text = res.text || res.extracted_text || "";
+                        setCalendarHolidays(text);
+                      } catch { /* ignore */ }
+                      finally { setCalendarParsing(false); }
+                    }}
+                  />
+                  {calendarFile && <span className="text-xs font-bold text-green-600">📎 {calendarFile.name}</span>}
+                  {calendarParsing && <span className="text-xs text-amber-500 animate-pulse">Extracting…</span>}
+                </div>
+                <textarea
+                  value={calendarHolidays}
+                  onChange={(e) => setCalendarHolidays(e.target.value)}
+                  placeholder="Holidays & Key Dates (Extracts automatically from upload)"
+                  rows={3}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                />
+              </div>
+
+              <div className="glass p-6 space-y-4">
                 <h2 className="text-lg font-semibold">⚙️ Constraints</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input label="Your Name" value={legacyConstraints.name} onChange={updateLegacy("name")} placeholder="Student" />
                   <Input label="Hours / Day" type="number" min={0.5} max={16} step={0.5}
                     value={legacyConstraints.available_hours_per_day} onChange={updateLegacy("available_hours_per_day")} />
-                  <Input label="Weak Subjects" value={legacyConstraints.weak_subjects} onChange={updateLegacy("weak_subjects")} placeholder="Math, Physics" />
+                  <Input label="Weak Subjects" value={legacyConstraints.weak_subjects} onChange={updateLegacy("weak_subjects")} placeholder="Enter weak subjects" />
                   <Input label="Language" value={legacyConstraints.language_preference} onChange={updateLegacy("language_preference")} />
                   <Input label="Exam Date" type="date" value={legacyConstraints.exam_date} onChange={updateLegacy("exam_date")} />
                   <label className="flex items-center gap-2 text-sm text-slate-300 self-end pb-1">
@@ -818,7 +1040,7 @@ export default function Planner() {
                   </label>
                 </div>
                 <Input label="Additional Notes" value={legacyConstraints.additional_notes} onChange={updateLegacy("additional_notes")}
-                  placeholder="Anything else" />
+                  placeholder="Enter additional constraints" />
                 {legacyGenError && <p className="text-red-400 text-sm">{legacyGenError}</p>}
                 <button onClick={handleLegacyGenerate} disabled={legacyGenerating}
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors">

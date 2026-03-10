@@ -29,9 +29,19 @@ export default function Dashboard() {
   const sessionsRef = useRef([]);
 
   useEffect(() => {
-    Promise.all([api.listSessions(), api.health(), api.getProfile()])
-      .then(([s, h, p]) => {
-        setSessions(s.sessions ?? []);
+    Promise.all([api.listSessions(), api.listSemesterPlans(), api.health(), api.getProfile()])
+      .then(([sessRes, semRes, h, p]) => {
+        const merged = [
+          ...(sessRes.sessions ?? []).map((s) => ({ ...s, _type: "legacy" })),
+          ...(semRes.plans ?? []).map((p) => ({ ...p, _type: "semester" })),
+        ];
+        merged.sort(
+          (a, b) =>
+            (b.updated_at || b.created_at || "").localeCompare(
+              a.updated_at || a.created_at || ""
+            )
+        );
+        setSessions(merged);
         setHealth(h);
         setProfile(p.profile ?? null);
       })
@@ -76,7 +86,12 @@ export default function Dashboard() {
 
   const recent = sessions.slice(0, 5);
   const totalTopics = sessions.reduce(
-    (n, s) => n + (s.topics?.length ?? 0),
+    (n, s) => {
+      if (s._type === "semester") {
+        return n + (s.subjects?.reduce((sn, sub) => sn + (sub.topics?.length ?? 0), 0) ?? 0);
+      }
+      return n + (s.topics?.length ?? 0);
+    },
     0
   );
   const campaignCount = sessions.filter((s) => s.campaign).length;
@@ -110,17 +125,10 @@ export default function Dashboard() {
       {profile && <PersonalizedHints profile={profile} sessions={sessions} />}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard ref={(el) => (statsRef.current[0] = el)} icon={<BookOpen size={24} />} label="Total Sessions" value={sessions.length} />
         <StatCard ref={(el) => (statsRef.current[1] = el)} icon={<BrainCircuit size={24} />} label="Topics Extracted" value={totalTopics} />
         <StatCard ref={(el) => (statsRef.current[2] = el)} icon={<CalendarDays size={24} />} label="Campaigns" value={campaignCount} />
-        <StatCard
-          ref={(el) => (statsRef.current[3] = el)}
-          icon={<Activity size={24} />}
-          label="Backend Status"
-          value={health?.status === "ok" ? "Online" : "Offline"}
-          accent={health?.status === "ok" ? "text-emerald-600" : "text-rose-600"}
-        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -118,7 +118,7 @@ export default function Portfolio() {
       {/* Add Entry */}
       {tab === "add" && (
         <div className="glass p-5 space-y-4">
-          <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. ML Image Classifier" />
+          <Input label="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Enter project title" />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
@@ -133,11 +133,11 @@ export default function Portfolio() {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
             <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={3} placeholder="Describe what you did, what you learned…"
+              rows={3} placeholder="Enter project description"
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
           </div>
-          <Input label="Skills (comma-separated)" value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="Python, TensorFlow, FastAPI" />
-          <Input label="URL (optional)" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://github.com/..." />
+          <Input label="Skills (comma-separated)" value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="Enter relevant skills" />
+          <Input label="URL (optional)" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="Enter project URL" />
           <button onClick={handleAdd} disabled={saving}
             className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg">
             {saving ? "Saving…" : "Add to Portfolio"}

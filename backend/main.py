@@ -72,6 +72,15 @@ from backend.db import (
     join_squad,
     get_user_squads,
     leave_squad,
+    join_squad_by_id,
+    get_squad_detail,
+    search_squads,
+    join_or_create_global_squad,
+    send_squad_message,
+    get_squad_messages,
+    send_dm,
+    get_dm_conversation,
+    get_dm_contacts,
     get_user_metrics,
     create_semester_plan,
     get_semester_plan,
@@ -649,7 +658,17 @@ async def api_search_study_groups(body: StudyGroupSearchBody, user_id: str = Dep
         val["subjects"] = list(val["subjects"])
         val["group_name"] = key
         result.append(val)
-    return {"groups": result}
+    # Also find existing squads matching the search
+    matching_squads = await search_squads(body.university, body.branch)
+    return {"groups": result, "existing_squads": matching_squads}
+
+
+@app.post("/api/squads/join-global")
+async def api_join_global_squad(body: StudyGroupSearchBody, user_id: str = Depends(get_current_user_id)):
+    if not body.university or not body.branch:
+        raise HTTPException(status_code=400, detail="University and branch are required.")
+    squad = await join_or_create_global_squad(user_id, body.university, body.branch)
+    return {"joined": True, "squad": squad}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -1064,6 +1083,71 @@ async def api_leave_squad(squad_id: str, user_id: str = Depends(get_current_user
     if not left:
         raise HTTPException(status_code=404, detail="Squad not found.")
     return {"left": True}
+
+
+@app.post("/api/squads/{squad_id}/join")
+async def api_join_squad_by_id(squad_id: str, user_id: str = Depends(get_current_user_id)):
+    squad = await join_squad_by_id(user_id, squad_id)
+    if not squad:
+        raise HTTPException(status_code=400, detail="Squad not found or full.")
+    return {"squad": squad}
+
+
+@app.get("/api/squads/{squad_id}")
+async def api_get_squad(squad_id: str, user_id: str = Depends(get_current_user_id)):
+    squad = await get_squad_detail(squad_id)
+    if not squad:
+        raise HTTPException(status_code=404, detail="Squad not found.")
+    return {"squad": squad}
+
+
+@app.get("/api/squads/search/find")
+async def api_search_squads(university: str = "", branch: str = "", user_id: str = Depends(get_current_user_id)):
+    squads = await search_squads(university, branch)
+    return {"squads": squads}
+
+
+class SquadMessageBody(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+@app.post("/api/squads/{squad_id}/messages")
+async def api_send_squad_message(squad_id: str, body: SquadMessageBody, user_id: str = Depends(get_current_user_id)):
+    user = await find_user_by_id(user_id)
+    name = user.get("name", "Unknown") if user else "Unknown"
+    msg = await send_squad_message(squad_id, user_id, name, body.text)
+    return {"message": msg}
+
+
+@app.get("/api/squads/{squad_id}/messages")
+async def api_get_squad_messages(squad_id: str, user_id: str = Depends(get_current_user_id)):
+    messages = await get_squad_messages(squad_id)
+    return {"messages": messages}
+
+
+class DmBody(BaseModel):
+    to_user_id: str
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+@app.post("/api/dm/send")
+async def api_send_dm(body: DmBody, user_id: str = Depends(get_current_user_id)):
+    user = await find_user_by_id(user_id)
+    name = user.get("name", "Unknown") if user else "Unknown"
+    msg = await send_dm(user_id, name, body.to_user_id, body.text)
+    return {"message": msg}
+
+
+@app.get("/api/dm/contacts")
+async def api_dm_contacts(user_id: str = Depends(get_current_user_id)):
+    contacts = await get_dm_contacts(user_id)
+    return {"contacts": contacts}
+
+
+@app.get("/api/dm/{other_user_id}")
+async def api_get_dm(other_user_id: str, user_id: str = Depends(get_current_user_id)):
+    messages = await get_dm_conversation(user_id, other_user_id)
+    return {"messages": messages}
 
 
 # ══════════════════════════════════════════════════════════════════════

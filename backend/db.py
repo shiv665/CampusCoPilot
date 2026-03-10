@@ -445,17 +445,24 @@ async def create_squad(creator_id: str, data: dict) -> dict:
 
 async def join_squad(user_id: str, invite_code: str) -> Optional[dict]:
     db = get_db()
-    squad = await db.squads.find_one({"invite_code": invite_code})
+    squad = await db.squads.find_one({"invite_code": invite_code.strip()})
     if not squad:
         return None
     if ObjectId(user_id) in squad.get("members", []):
         return serialize_doc(squad)  # already a member
     if len(squad.get("members", [])) >= squad.get("max_members", 5):
         return None  # full
+    uid = ObjectId(user_id)
     await db.squads.update_one(
         {"_id": squad["_id"]},
-        {"$push": {"members": ObjectId(user_id)}},
+        {"$push": {"members": uid}},
     )
+    
+    # Send joining message
+    user = await db.users.find_one({"_id": uid})
+    name = user.get("name", "A new student") if user else "A new student"
+    await send_squad_message(str(squad["_id"]), user_id, name, "👋 Hey everyone, I just joined the squad!")
+    
     return serialize_doc(await db.squads.find_one({"_id": squad["_id"]}))
 
 
@@ -484,6 +491,209 @@ async def leave_squad(user_id: str, squad_id: str) -> bool:
         {"$pull": {"members": ObjectId(user_id)}},
     )
     return result.modified_count > 0
+
+
+async def join_squad_by_id(user_id: str, squad_id: str) -> Optional[dict]:
+    """Join a squad by its ObjectId (used from search results)."""
+    db = get_db()
+    try:
+        squad = await db.squads.find_one({"_id": ObjectId(squad_id)})
+    except Exception:
+        return None
+    if not squad:
+        return None
+    uid = ObjectId(user_id)
+    if uid in squad.get("members", []):
+        return serialize_doc(squad)  # already a member
+    if len(squad.get("members", [])) >= squad.get("max_members", 5):
+        return None  # full
+    await db.squads.update_one(
+        {"_id": squad["_id"]},
+        {"$push": {"members": uid}},
+    )
+    
+    # Send joining message
+    user = await db.users.find_one({"_id": uid})
+    name = user.get("name", "A new student") if user else "A new student"
+    await send_squad_message(str(squad["_id"]), user_id, name, "👋 Hey everyone, I just joined the squad!")
+    
+    return serialize_doc(await db.squads.find_one({"_id": squad["_id"]}))
+
+
+async def join_or_create_global_squad(user_id: str, university: str, branch: str) -> dict:
+    """Finds or creates a global squad for a specific university and branch."""
+    db = get_db()
+    norm_uni = university.strip().upper()
+    norm_branch = branch.strip().upper()
+    
+    squad = await db.squads.find_one({
+        "is_global": True, 
+        "university_norm": norm_uni, 
+        "branch_norm": norm_branch
+    })
+    
+    uid = ObjectId(user_id)
+    import string
+    import random
+    
+    if not squad:
+        # Create new global hub
+        code = "G-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        doc = {
+            "creator_id": uid,
+            "name": f"{university.strip().title()} - {branch.strip().upper()}",
+            "topic": "Global Hub",
+            "members": [uid],
+            "max_members": 500,
+            "invite_code": code,
+            "created_at": datetime.now(timezone.utc),
+            "is_global": True,
+            "university_norm": norm_uni,
+            "branch_norm": norm_branch
+        }
+        res = await db.squads.insert_one(doc)
+        squad_id = str(res.inserted_id)
+    else:
+        squad_id = str(squad["_id"])
+        if uid not in squad.get("members", []):
+            await db.squads.update_one({"_id": squad["_id"]}, {"$push": {"members": uid}})
+            user = await db.users.find_one({"_id": uid})
+            name = user.get("name", "A new student") if user else "A new student"
+            await send_squad_message(squad_id, user_id, name, "👋 Hey everyone, I just joined the hub!")
+            
+    return await get_squad_detail(squad_id)
+
+
+async def get_squad_detail(squad_id: str) -> Optional[dict]:
+    """Get a single squad with populated member info."""
+    db = get_db()
+    try:
+        doc = await db.squads.find_one({"_id": ObjectId(squad_id)})
+    except Exception:
+        return None
+    if not doc:
+        return None
+    populated = []
+    for mid in doc.get("members", []):
+        u = await db.users.find_one({"_id": mid})
+        populated.append({
+            "_id": str(mid),
+            "name": u.get("name", "Unknown") if u else "Unknown",
+            "email": u.get("email", "") if u else "",
+        })
+    doc["members"] = populated
+    return serialize_doc(doc)
+
+
+async def search_squads(university: str = "", branch: str = "") -> List[dict]:
+    """Find squads whose name or topic match university/branch keywords."""
+    db = get_db()
+    conditions = []
+    for kw in [university, branch]:
+        if kw and kw.strip():
+            conditions.append({"$or": [
+                {"name": {"$regex": kw.strip(), "$options": "i"}},
+                {"topic": {"$regex": kw.strip(), "$options": "i"}},
+            ]})
+    if not conditions:
+        return []
+    query = {"$and": conditions} if len(conditions) > 1 else conditions[0]
+    cursor = db.squads.find(query).sort("created_at", -1)
+    docs = await cursor.to_list(length=30)
+    result = []
+    for doc in docs:
+        populated = []
+        for mid in doc.get("members", []):
+            u = await db.users.find_one({"_id": mid})
+            populated.append({
+                "_id": str(mid),
+                "name": u.get("name", "Unknown") if u else "Unknown",
+            })
+        doc["members"] = populated
+        result.append(serialize_doc(doc))
+    return result
+
+
+async def send_squad_message(squad_id: str, user_id: str, user_name: str, text: str) -> dict:
+    """Save a group chat message."""
+    db = get_db()
+    doc = {
+        "squad_id": ObjectId(squad_id),
+        "sender_id": ObjectId(user_id),
+        "sender_name": user_name,
+        "text": text,
+        "created_at": datetime.now(timezone.utc),
+    }
+    result = await db.squad_messages.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+
+async def get_squad_messages(squad_id: str, limit: int = 50) -> List[dict]:
+    """Get recent messages for a squad."""
+    db = get_db()
+    cursor = db.squad_messages.find(
+        {"squad_id": ObjectId(squad_id)}
+    ).sort("created_at", -1).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    return [serialize_doc(d) for d in reversed(docs)]
+
+
+async def send_dm(from_id: str, from_name: str, to_id: str, text: str) -> dict:
+    """Save a direct message between two users."""
+    db = get_db()
+    doc = {
+        "from_id": ObjectId(from_id),
+        "from_name": from_name,
+        "to_id": ObjectId(to_id),
+        "text": text,
+        "created_at": datetime.now(timezone.utc),
+    }
+    result = await db.direct_messages.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return serialize_doc(doc)
+
+
+async def get_dm_conversation(user_id: str, other_id: str, limit: int = 50) -> List[dict]:
+    """Get DM conversation between two users."""
+    db = get_db()
+    uid, oid = ObjectId(user_id), ObjectId(other_id)
+    cursor = db.direct_messages.find({
+        "$or": [
+            {"from_id": uid, "to_id": oid},
+            {"from_id": oid, "to_id": uid},
+        ]
+    }).sort("created_at", -1).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    return [serialize_doc(d) for d in reversed(docs)]
+
+
+async def get_dm_contacts(user_id: str) -> List[dict]:
+    """Get list of users the current user has DM'd with, with last message."""
+    db = get_db()
+    uid = ObjectId(user_id)
+    pipeline = [
+        {"$match": {"$or": [{"from_id": uid}, {"to_id": uid}]}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": {"$cond": [{"$eq": ["$from_id", uid]}, "$to_id", "$from_id"]},
+            "last_message": {"$first": "$text"},
+            "last_at": {"$first": "$created_at"},
+            "last_from": {"$first": "$from_name"},
+        }},
+        {"$sort": {"last_at": -1}},
+        {"$limit": 30},
+    ]
+    contacts = []
+    async for doc in db.direct_messages.aggregate(pipeline):
+        other = await db.users.find_one({"_id": doc["_id"]})
+        contacts.append({
+            "user_id": str(doc["_id"]),
+            "name": other.get("name", "Unknown") if other else "Unknown",
+            "last_message": doc["last_message"],
+            "last_at": doc["last_at"].isoformat() if doc.get("last_at") else "",
+        })
+    return contacts
 
 
 # ══════════════════════════════════════════════════════════════════════

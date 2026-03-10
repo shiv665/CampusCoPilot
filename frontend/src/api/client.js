@@ -189,6 +189,25 @@ export const api = {
     }),
   leaveSquad: (squadId) =>
     request(`/api/squads/${squadId}/leave`, { method: "POST" }),
+  joinSquadById: (squadId) =>
+    request(`/api/squads/${squadId}/join`, { method: "POST" }),
+  getSquad: (squadId) =>
+    request(`/api/squads/${squadId}`),
+  getSquadMessages: (squadId) =>
+    request(`/api/squads/${squadId}/messages`),
+  sendSquadMessage: (squadId, text) =>
+    request(`/api/squads/${squadId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  sendDm: (toUserId, text) =>
+    request("/api/dm/send", {
+      method: "POST",
+      body: JSON.stringify({ to_user_id: toUserId, text }),
+    }),
+  getDmConversation: (otherUserId) =>
+    request(`/api/dm/${otherUserId}`),
+  getDmContacts: () => request("/api/dm/contacts"),
 
   // ── Semester Planner ──
   createSemesterPlan: (semesterInfo) =>
@@ -225,6 +244,11 @@ export const api = {
     }),
   searchStudyGroups: (university = "", branch = "") =>
     request("/api/study-groups/search", {
+      method: "POST",
+      body: JSON.stringify({ university, branch }),
+    }),
+  joinGlobalSquad: (university, branch) =>
+    request("/api/squads/join-global", {
       method: "POST",
       body: JSON.stringify({ university, branch }),
     }),
