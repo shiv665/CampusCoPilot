@@ -64,9 +64,16 @@ export default function App() {
     <NotificationProvider>
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
+          {/* ═══ DEMO BYPASS: skip login/register, go to dashboard ═══ */}
+          <Route path="/login" element={<Navigate to="/" />} />
+          <Route path="/register" element={<Navigate to="/" />} />
+          <Route path="/onboarding" element={<Navigate to="/" />} />
+          {/* ═══ END DEMO BYPASS ═══ */}
+          {/* ORIGINAL (uncomment to restore login/register):
           <Route path="/login" element={user ? <Navigate to="/" /> : <PageWrapper><Login /></PageWrapper>} />
           <Route path="/register" element={user ? <Navigate to="/onboarding" /> : <PageWrapper><Register /></PageWrapper>} />
           <Route path="/onboarding" element={<ProtectedRoute><PageWrapper><Onboarding /></PageWrapper></ProtectedRoute>} />
+          */}
 
           {/* Protected Routes inside Layout */}
           <Route path="/" element={<ProtectedRoute><Layout><PageWrapper><Dashboard /></PageWrapper></Layout></ProtectedRoute>} />

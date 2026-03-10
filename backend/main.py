@@ -183,9 +183,12 @@ async def login(body: LoginBody):
 
 @app.get("/api/auth/me")
 async def get_me(user_id: str = Depends(get_current_user_id)):
+    # ═══ DEMO BYPASS: return test user if not found in DB ═══
     user = await find_user_by_id(user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+        return {"id": "test-judge-user", "email": "judges@demo.com", "name": "Judges"}
+    # ═══ END DEMO BYPASS ═══
+    # ORIGINAL: raise HTTPException(status_code=404, detail="User not found.")
     return {"id": user["_id"], "email": user["email"], "name": user["name"]}
 
 

@@ -1,45 +1,78 @@
-# CampusCoPilot – AI-Powered Study Planner (Lean MVP)
+# CampusCoPilot – AI-Powered Multi-Agent Study Platform
 
-**Team Neurixia** · Built on Azure AI Foundry + Llama
+**Team Neurixia** · Built on Azure AI Foundry
+
+> **Live:** [campuscopilot.me](https://campuscopilot.me)
 
 ---
 
 ## What It Does
 
-A student uploads a **syllabus PDF** -> CampusCoPilot extracts topics -> the **Planner Agent** (powered by Llama on Azure) generates a **personalized, week-by-week study campaign** with daily tasks, time-slots, and priorities -> disruptions (canceled class, sick day) can be simulated and the plan **dynamically re-plans** itself.
+CampusCoPilot is a **5-agent AI system** that turns any syllabus into a personalized, adaptive study experience:
+
+1. **Upload** a syllabus PDF or image → AI extracts structured topics
+2. **Planner Agent** generates a week-by-week study campaign with daily time-slots and priorities
+3. **Disruptions** (sick day, canceled class, surprise assignment) trigger **real-time replanning**
+4. **Retriever Agent** curates micro-lessons, videos, practice questions per topic
+5. **Micro-Tutor Agent** generates quizzes, flashcards, and resume bullet points
+6. **Scheduler Agent** optimizes your daily timetable around fixed + dynamic events
+7. **Executor Agent** runs Pomodoro focus sessions, tracks streaks, awards badges, and sends well-being nudges
 
 ---
 
-## Architecture (Budget-Friendly)
+## Architecture
 
 ```
-┌──────────────┐    PDF     ┌──────────────────────────────┐
-│   Frontend   │ ────────►  │  FastAPI Backend              │
-│  (HTML/JS)   │ ◄────────  │                                │
-└──────────────┘   JSON     │  ┌─────────────┐              │
-                            │  │ PDF Parser   │  (PyPDF2)   │
-                            │  │ (free/local) │              │
-                            │  └──────┬──────┘              │
-                            │         ▼                      │
-                            │  ┌─────────────┐              │
-                            │  │ ChromaDB     │  (local)    │
-                            │  │ Vector Store │              │
-                            │  └──────┬──────┘              │
-                            │         ▼                      │
-                            │  ┌─────────────┐              │
-                            │  │ Planner Agent│              │
-                            │  │ (prompts +   │              │
-                            │  │  orchestrate)│              │
-                            │  └──────┬──────┘              │
-                            └─────────┼──────────────────────┘
-                                      ▼
-                            ┌─────────────────┐
-                            │ Azure AI Foundry │  ← only Azure cost
-                            │ (Llama model)    │
-                            └─────────────────┘
+┌─────────────────────┐         ┌──────────────────────────────────────┐
+│   React Frontend    │  REST   │  FastAPI Backend (Azure App Service) │
+│   (Vite + GSAP)     │ ◄─────► │                                      │
+│   Azure Static      │  JSON   │  ┌────────────┐  ┌───────────────┐  │
+│   Web App           │         │  │ PDF Parser  │  │ Azure Doc     │  │
+└─────────────────────┘         │  │ (PyPDF2)    │  │ Intelligence  │  │
+                                │  └──────┬──────┘  └───────┬───────┘  │
+                                │         ▼                  ▼          │
+                                │  ┌─────────────┐  ┌──────────────┐   │
+                                │  │ ChromaDB    │  │ Azure AI     │   │
+                                │  │ Vector Store│  │ Search (RAG) │   │
+                                │  └──────┬──────┘  └──────┬───────┘   │
+                                │         ▼                 ▼          │
+                                │  ┌─────────────────────────────────┐ │
+                                │  │         5 AI Agents             │ │
+                                │  │  Planner · Retriever · Tutor   │ │
+                                │  │  Scheduler · Executor           │ │
+                                │  └──────────────┬──────────────────┘ │
+                                └─────────────────┼────────────────────┘
+                                                  ▼
+                                ┌──────────────────────────┐
+                                │   Azure AI Foundry       │
+                                │   (LLM Inference)        │
+                                └──────────────────────────┘
+                                ┌──────────────────────────┐
+                                │   Azure Cosmos DB        │
+                                │   (MongoDB API)          │
+                                └──────────────────────────┘
 ```
 
-**Cost strategy**: Everything runs locally except the Llama inference call. Token usage is tracked in real-time to protect the **$100 budget**.
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **Syllabus Upload** | PDF or image → OCR (Azure Document Intelligence) → structured topic extraction |
+| **Study Campaign** | Week-by-week plan with daily tasks, time-slots, priorities, and breaks |
+| **Disruption Replanning** | Sick day / canceled class / extra assignment → AI redistributes tasks |
+| **Semester Planner** | Multi-subject semester-wide campaign with midterm/endterm awareness |
+| **Micro-Tutor** | AI-generated quizzes, flashcards, and adaptive learning content |
+| **Resource Packs** | Micro-lessons, video recommendations, practice questions per topic |
+| **Smart Scheduler** | Optimizes fixed + dynamic events into a conflict-free timetable |
+| **Pomodoro Timer** | Focus sessions with mini-goals and completion checklists |
+| **Gamification** | Streaks, 12 badge types, achievements dashboard |
+| **Well-being Nudges** | AI detects overwork and suggests breaks / lighter days |
+| **Scan Notes** | Upload handwritten notes → OCR → formatted AI summaries |
+| **Portfolio & Resume** | Track projects, generate AI resume bullet points |
+| **Study Squads** | Find and join study groups by university/branch |
+| **Profile & Analytics** | Track study hours, topics covered, completion rates |
 
 ---
 
@@ -50,136 +83,172 @@ NEURIXIA/
 ├── backend/
 │   ├── main.py                # FastAPI app + all endpoints
 │   ├── config.py              # Env vars / settings
+│   ├── auth.py                # JWT authentication
+│   ├── db.py                  # Azure Cosmos DB (MongoDB API)
 │   ├── agents/
-│   │   ├── planner.py         # Planner Agent orchestration
-│   │   └── prompts.py         # All Llama prompt templates
+│   │   ├── planner.py         # Planner Agent – campaign generation & replanning
+│   │   ├── retriever.py       # Retriever Agent – micro-lessons & resource packs
+│   │   ├── micro_tutor.py     # Micro-Tutor Agent – quizzes, flashcards, resume
+│   │   ├── scheduler.py       # Scheduler Agent – smart timetable optimization
+│   │   ├── executor.py        # Executor Agent – focus sessions, streaks, badges
+│   │   └── prompts.py         # All LLM prompt templates
 │   ├── services/
 │   │   ├── pdf_parser.py      # PyPDF2 text extraction + chunking
-│   │   ├── vector_store.py    # ChromaDB local RAG
+│   │   ├── vector_store.py    # ChromaDB local vector store
+│   │   ├── azure_search.py    # Azure AI Search integration
 │   │   └── llama_client.py    # Azure AI Foundry HTTP client
 │   └── models/
 │       └── schemas.py         # Pydantic request/response models
 ├── frontend/
-│   ├── index.html             # Single-page UI
-│   ├── styles.css             # Dark-theme stylesheet
-│   └── app.js                 # Frontend logic
+│   ├── index.html             # Entry point
+│   ├── vite.config.js         # Vite build config
+│   └── src/
+│       ├── App.jsx            # React router + layout
+│       ├── api/client.js      # API client with auth
+│       ├── context/           # Auth & notification providers
+│       ├── components/        # Sidebar, 3D background, protected routes
+│       └── pages/             # Dashboard, Planner, Campaign, MicroTutor,
+│                              # Scheduler, Pomodoro, Analytics, Achievements,
+│                              # ScanNotes, Portfolio, Squads, Profile, etc.
 ├── requirements.txt
-├── .env.example               # Template for secrets
-├── .gitignore
+├── startup.sh                 # Azure App Service startup
 └── README.md
 ```
 
 ---
 
-## Quick Start
+## Quick Start (Local Development)
 
-### 1. Prerequisites
+### Prerequisites
 
 - **Python 3.10+**
-- An **Azure AI Foundry** deployment with a Llama model
-- Your Azure endpoint URL and API key
+- **Node.js 18+**
+- Azure AI Foundry deployment + API key
+- Azure Cosmos DB (MongoDB API) connection string
 
-### 2. Clone & Install
+### Backend
 
 ```bash
 cd NEURIXIA
 python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS/Linux
-source .venv/bin/activate
-
+.venv\Scripts\activate          # Windows
 pip install -r requirements.txt
-```
 
-### 3. Configure Environment
-
-```bash
-copy .env.example .env
-# Edit .env with your Azure AI credentials:
-#   AZURE_AI_ENDPOINT=https://YOUR-RESOURCE.openai.azure.com/
+# Configure .env with:
+#   AZURE_AI_ENDPOINT=https://your-resource.services.ai.azure.com/models
 #   AZURE_AI_API_KEY=your-key
-#   AZURE_AI_DEPLOYMENT=llama-3
-```
+#   AZURE_AI_DEPLOYMENT=your-model-name
+#   MONGO_URI=mongodb+srv://...
+#   JWT_SECRET=your-secret
 
-### 4. Run the Server
-
-```bash
 python -m backend.main
 ```
 
-The API starts at **http://localhost:8000**  
-The frontend is served at **http://localhost:8000/app**
+Backend runs at **http://localhost:8000**
 
-### 5. Use It
+### Frontend
 
-1. Open **http://localhost:8000/app** in your browser
-2. Upload a syllabus PDF
-3. Review extracted topics
-4. Set student constraints (or click a **preset persona** like Abishek)
-5. Click **Generate Study Campaign**
-6. Simulate a disruption with the lightning button
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs at **http://localhost:5173**
 
 ---
 
 ## API Endpoints
 
+### Auth
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET`  | `/health` | Health check + token usage |
-| `POST` | `/api/upload-syllabus` | Upload PDF, extract & index topics |
+| `POST` | `/api/auth/register` | Register new user |
+| `POST` | `/api/auth/login` | Login → JWT token |
+| `GET`  | `/api/auth/me` | Current user info |
+
+### Core Study Flow
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/upload-syllabus` | Upload PDF/image → extract topics |
 | `POST` | `/api/generate-campaign` | Generate study campaign from topics |
-| `POST` | `/api/mock-disruption` | Simulate disruption & replan |
-| `POST` | `/api/replan` | Full replan with campaign + disruption + constraints |
-| `GET`  | `/api/state` | Get current session state |
+| `POST` | `/api/mock-disruption` | Simulate disruption → replan |
+| `POST` | `/api/schedule` | Generate optimized schedule |
+| `GET`  | `/api/sessions` | List all sessions |
+| `GET`  | `/api/sessions/{id}` | Get session + campaign |
+
+### Semester Planning
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/semester-plan` | Create semester plan |
+| `POST` | `/api/semester-plan/{id}/add-subject` | Add subject manually |
+| `POST` | `/api/semester-plan/{id}/upload-subject` | Upload subject PDF |
+| `POST` | `/api/semester-plan/{id}/generate-campaign` | Generate semester campaign |
+
+### Learning & Practice
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/quiz/generate` | Generate AI quiz |
+| `POST` | `/api/flashcards/generate` | Generate flashcard deck |
+| `POST` | `/api/resources` | Get resource pack for a topic |
+| `POST` | `/api/scan-notes` | OCR handwritten notes |
+| `POST` | `/api/format-notes` | AI-format scanned notes |
+
+### Productivity & Engagement
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/focus-session` | Generate Pomodoro session plan |
+| `POST` | `/api/pomodoro/log` | Log completed Pomodoro |
+| `POST` | `/api/tasks/complete` | Mark task as done |
+| `GET`  | `/api/gamification` | Streaks, badges, achievements |
+| `GET`  | `/api/wellbeing/nudge` | AI well-being recommendations |
+
+### Social & Profile
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET`  | `/api/profile` | Get user profile |
+| `PUT`  | `/api/profile` | Update profile |
+| `POST` | `/api/portfolio` | Add portfolio entry |
+| `POST` | `/api/portfolio/resume-bullets` | AI resume generation |
+| `POST` | `/api/squads` | Create study squad |
+| `POST` | `/api/squads/join` | Join a squad |
 
 ---
 
-## Team Roles (Parallel Workflow)
+## The 5 AI Agents
 
-| Member | Focus | Files |
-|--------|-------|-------|
-| **Pratham** | Agent logic & orchestration | `agents/planner.py`, `agents/prompts.py` |
-| **Himanshu** | Prompt engineering (structured JSON output) | `agents/prompts.py`, `services/llama_client.py` |
-| **Priyanshu** | Frontend UI (upload -> calendar) | `frontend/*` |
-| **Shivansh** | Full-Stack Architecture, Deployment & AI Integration | Full Codebase |
-
----
-
-## Testing with Personas
-
-The UI includes preset personas. Click **Abishek** to auto-fill:
-
-- **Name**: Abishek  
-- **Hours/day**: 3 (fragmented)  
-- **Weak subjects**: English, Statistics  
-- **Language**: Hindi  
-- **Notes**: Struggling with English comprehension, part-time work schedule  
-
-This tests whether the planner correctly prioritizes tasks, uses simpler language, and fits tasks into short time blocks.
+| Agent | Role | Key Capabilities |
+|-------|------|-------------------|
+| **Planner** | Brain of the system | Syllabus parsing, topic extraction, campaign generation, disruption replanning, semester planning |
+| **Retriever** | Knowledge scout | RAG-powered micro-lessons, video recommendations, practice questions, key formulas |
+| **Micro-Tutor** | Adaptive learning | Quiz generation, flashcard decks, resume bullet points |
+| **Scheduler** | Time optimizer | Fixed/dynamic event scheduling, conflict resolution, break insertion |
+| **Executor** | Action driver | Pomodoro focus sessions, streak tracking, badge system (12 types), well-being nudges |
 
 ---
 
-## Budget Tips
+## Azure Services Used
 
-- **Monitor tokens**: The top-right badge shows cumulative token usage.
-- **ChromaDB is free**: RAG runs entirely locally, zero Azure cost.
-- **PyPDF2 is free**: No Document Intelligence charges during prototyping.
-- **Temperature 0.3**: Lower temperature = fewer retries = fewer tokens.
-- **Truncate syllabus**: Only the first ~3000 chars are sent for topic extraction.
+| Service | Purpose |
+|---------|---------|
+| **Azure AI Foundry** | LLM inference for all 5 agents |
+| **Azure Cosmos DB** | User data, sessions, campaigns (MongoDB API) |
+| **Azure App Service** | Backend hosting |
+| **Azure Static Web Apps** | Frontend hosting |
+| **Azure Document Intelligence** | OCR for images and handwritten notes |
+| **Azure AI Search** | RAG vector search for resource retrieval |
+| **ChromaDB** | Local vector store for syllabus chunks |
 
 ---
 
-## Next Steps (Post-MVP)
+## Team Roles
 
-- [ ] Add **Retriever Agent** (deeper RAG with Azure AI Search)
-- [ ] Add **Executor Agent** (push tasks to calendar APIs)
-- [ ] Replace ChromaDB with Azure AI Search when budget allows
-- [ ] Add authentication & per-user state (Azure Cosmos DB)
-- [ ] Deploy to **Azure Container Apps** (serverless, pay-per-use)
-- [ ] CI/CD via GitHub Actions
+| Member | Focus |
+|--------|-------|
+| **Pratham** | Agent logic & orchestration |
+| **Himanshu** | Prompt engineering (structured JSON output) |
+| **Priyanshu** | Frontend UI & UX |
+| **Shivansh** | Full-Stack Architecture, Deployment & AI Integration |
 
 ---
 

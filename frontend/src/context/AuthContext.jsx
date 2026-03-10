@@ -1,8 +1,36 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { api } from "../api/client";
+// import { api } from "../api/client"; // ORIGINAL – uncomment when restoring login
 
 const AuthContext = createContext(null);
 
+// ═══ DEMO BYPASS: Auto-login as "Judges" test user ═══
+// To restore real auth, uncomment the original code below and remove this block.
+const TEST_USER = { id: "test-judge-user", email: "judges@demo.com", name: "Judges" };
+const TEST_TOKEN = "demo-token-judges";
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(TEST_USER);
+  const [loading, setLoading] = useState(false);
+
+  // Set fake token so API client includes Authorization header
+  useEffect(() => {
+    localStorage.setItem("token", TEST_TOKEN);
+    localStorage.setItem("user", JSON.stringify(TEST_USER));
+  }, []);
+
+  const login = async () => ({ token: TEST_TOKEN, user: TEST_USER });
+  const register = async () => ({ token: TEST_TOKEN, user: TEST_USER });
+  const logout = () => {}; // no-op for demo
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+// ═══ END DEMO BYPASS ═══
+
+/* ─── ORIGINAL AuthProvider (uncomment to restore login/register) ───
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem("user");
@@ -57,6 +85,7 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+─── END ORIGINAL ─── */
 
 export function useAuth() {
   const ctx = useContext(AuthContext);

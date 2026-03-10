@@ -13,4 +13,6 @@ node_modules/
 deploy_azure.txt
 /clean_readme.py
 /testfile
+/generate_submission_pdf.py
+/CampusCoPilot_Submission.pdf
 

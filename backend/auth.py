@@ -37,16 +37,26 @@ def decode_access_token(token: str) -> dict:
 
 
 # ── FastAPI dependency to extract current user ───────────────────────
-_bearer = HTTPBearer()
+_bearer = HTTPBearer(auto_error=False)  # auto_error=False so missing token won't 403
 
+# ═══ DEMO BYPASS: always return test user id ═══
+TEST_USER_ID = "test-judge-user"
 
 async def get_current_user_id(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
-    """
+    return TEST_USER_ID
+# ═══ END DEMO BYPASS ═══
+
+"""
+─── ORIGINAL get_current_user_id (uncomment to restore JWT auth) ───
+async def get_current_user_id(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> str:
+    \"\"\"
     Dependency: extracts and validates the JWT from the Authorization header.
     Returns the user_id (string).
-    """
+    \"\"\"
     try:
         payload = decode_access_token(creds.credentials)
         user_id: Optional[str] = payload.get("sub")
@@ -55,3 +65,5 @@ async def get_current_user_id(
         return user_id
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+─── END ORIGINAL ───
+"""

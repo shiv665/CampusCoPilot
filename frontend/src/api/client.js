@@ -20,12 +20,14 @@ async function request(path, options = {}) {
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-  if (res.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    window.location.href = "/login";
-    throw new Error("Session expired.");
-  }
+  // ═══ DEMO BYPASS: skip 401 redirect to login ═══
+  // if (res.status === 401) {
+  //   localStorage.removeItem("token");
+  //   localStorage.removeItem("user");
+  //   window.location.href = "/login";
+  //   throw new Error("Session expired.");
+  // }
+  // ═══ END DEMO BYPASS ═══
 
   let data;
   const contentType = res.headers.get("content-type") || "";
