@@ -11,3 +11,6 @@ build/
 venv/
 node_modules/
 deploy_azure.txt
+/clean_readme.py
+/testfile
+

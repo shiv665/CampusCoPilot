@@ -6,6 +6,8 @@ export default function ScanNotes() {
     const [file, setFile] = useState(null);
     const [scanning, setScanning] = useState(false);
     const [result, setResult] = useState(null);
+    const [formattedResult, setFormattedResult] = useState(null);
+    const [formatting, setFormatting] = useState(false);
     const [error, setError] = useState("");
 
     // TTS State
@@ -27,7 +29,18 @@ export default function ScanNotes() {
 
         try {
             const res = await api.scanNotes(file);
-            setResult(res.text || res.extracted_text || "No text could be extracted.");
+            const rawText = res.text || res.extracted_text || "No text could be extracted.";
+            setResult(rawText);
+            // Auto-format with AI
+            setFormatting(true);
+            try {
+                const fmtRes = await api.formatNotes(rawText);
+                setFormattedResult(fmtRes.formatted_text || rawText);
+            } catch {
+                setFormattedResult(null);
+            } finally {
+                setFormatting(false);
+            }
         } catch (e) {
             setError(e.message || "Failed to scan notes. Ensure backend supports OCR endpoint.");
         } finally {
@@ -36,8 +49,10 @@ export default function ScanNotes() {
     };
 
     // TTS (Text-to-Speech) using Web Speech API
+    const displayText = formattedResult || result;
+
     const handleTTS = () => {
-        if (!result) return;
+        if (!displayText) return;
         if (speaking && !paused) {
             window.speechSynthesis.pause();
             setPaused(true);
@@ -49,7 +64,7 @@ export default function ScanNotes() {
             return;
         }
 
-        const utterance = new SpeechSynthesisUtterance(result);
+        const utterance = new SpeechSynthesisUtterance(displayText);
         utterance.onend = () => {
             setSpeaking(false);
             setPaused(false);
@@ -113,9 +128,33 @@ export default function ScanNotes() {
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
                     <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                         <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                            <span>📝</span> Extracted Content
+                            <span>📝</span> {formattedResult ? "AI-Formatted Notes" : "Extracted Content"}
+                            {formatting && <span className="text-xs text-indigo-500 animate-pulse ml-2">✨ AI is formatting...</span>}
                         </h2>
                         <div className="flex gap-2">
+                            {formattedResult && (
+                                <button
+                                    onClick={() => setFormattedResult(null)}
+                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-medium transition-colors border border-slate-200"
+                                >
+                                    Show Raw
+                                </button>
+                            )}
+                            {!formattedResult && result && !formatting && (
+                                <button
+                                    onClick={async () => {
+                                        setFormatting(true);
+                                        try {
+                                            const fmtRes = await api.formatNotes(result);
+                                            setFormattedResult(fmtRes.formatted_text || result);
+                                        } catch { /* ignore */ }
+                                        finally { setFormatting(false); }
+                                    }}
+                                    className="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition-colors border border-indigo-200"
+                                >
+                                    ✨ Format with AI
+                                </button>
+                            )}
                             {speaking ? (
                                 <button onClick={stopSpeaking} className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-lg text-sm font-medium transition-colors border border-rose-500/30">
                                     ⏹️ Stop
@@ -130,9 +169,15 @@ export default function ScanNotes() {
                         </div>
                     </div>
                     <div className="p-6 bg-white">
-                        <div className="whitespace-pre-wrap text-slate-700 leading-relaxed font-mono text-sm">
-                            {result}
-                        </div>
+                        {formattedResult ? (
+                            <div className="prose prose-slate max-w-none text-sm leading-relaxed whitespace-pre-wrap">
+                                {formattedResult}
+                            </div>
+                        ) : (
+                            <div className="whitespace-pre-wrap text-slate-700 leading-relaxed font-mono text-sm">
+                                {result}
+                            </div>
+                        )}
                     </div>
                 </motion.div>
             )}

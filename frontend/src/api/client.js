@@ -1,7 +1,7 @@
 /**
  * API client – handles auth token and base URL.
  */
-const API_BASE = "https://campuscopilot-chhagnbhf9gpaqfm.southeastasia-01.azurewebsites.net";
+export const API_BASE = "https://campuscopilot-chhagnbhf9gpaqfm.southeastasia-01.azurewebsites.net";
 function getToken() {
   return localStorage.getItem("token");
 }
@@ -115,6 +115,11 @@ export const api = {
     form.append("file", file);
     return request("/api/scan-notes", { method: "POST", body: form });
   },
+  formatNotes: (text) =>
+    request("/api/format-notes", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   generateQuiz: (topic, difficulty = "medium", numQuestions = 5, language = "English") =>
     request("/api/quiz/generate", {
       method: "POST",

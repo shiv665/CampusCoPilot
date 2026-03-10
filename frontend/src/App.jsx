@@ -65,7 +65,7 @@ export default function App() {
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/login" element={user ? <Navigate to="/" /> : <PageWrapper><Login /></PageWrapper>} />
-          <Route path="/register" element={user ? <Navigate to="/" /> : <PageWrapper><Register /></PageWrapper>} />
+          <Route path="/register" element={user ? <Navigate to="/onboarding" /> : <PageWrapper><Register /></PageWrapper>} />
           <Route path="/onboarding" element={<ProtectedRoute><PageWrapper><Onboarding /></PageWrapper></ProtectedRoute>} />
 
           {/* Protected Routes inside Layout */}

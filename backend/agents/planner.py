@@ -23,6 +23,7 @@ from backend.services.pdf_parser import (
     extract_topics_heuristic,
 )
 from backend.services.vector_store import index_chunks, query_similar, reset_collection
+from backend.services.llama_client import chat_completion_json
 
 import asyncio
 import httpx

@@ -22,6 +22,7 @@ export default function MicroTutor() {
 
   // History
   const [history, setHistory] = useState([]);
+  const [expandedHistory, setExpandedHistory] = useState(null);
 
   const handleGenerateQuiz = async () => {
     if (!topic.trim()) return setError("Enter a topic");
@@ -52,7 +53,11 @@ export default function MicroTutor() {
       if (isCorrect) correct++;
       answerResults.push({
         question_id: q.id,
+        question: q.question,
+        options: q.options || [],
         user_answer: userAnswer,
+        correct_answer: q.correct_answer || "",
+        explanation: q.explanation || "",
         correct: isCorrect,
       });
     });
@@ -171,7 +176,7 @@ export default function MicroTutor() {
           {(quiz.questions || []).map((q) => (
             <div key={q.id} className="glass p-4 space-y-2">
               <p className="font-medium">Q{q.id}. {q.question}</p>
-              {q.type === "mcq" && (q.options || []).map((opt, oi) => {
+              {(q.options || []).map((opt, oi) => {
                 const letter = opt.charAt(0);
                 const isSelected = answers[q.id] === letter;
                 const isCorrect = submitted && letter === q.correct_answer;
@@ -185,28 +190,6 @@ export default function MicroTutor() {
                       }`}>{opt}</button>
                 );
               })}
-              {q.type === "true_false" && (
-                <div className="flex gap-2">
-                  {["True", "False"].map((v) => {
-                    const isSelected = answers[q.id] === v;
-                    const isCorrect = submitted && v === q.correct_answer;
-                    const isWrong = submitted && isSelected && v !== q.correct_answer;
-                    return (
-                      <button key={v} onClick={() => !submitted && setAnswers((p) => ({ ...p, [q.id]: v }))}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isCorrect ? "bg-green-100 text-green-700" :
-                          isWrong ? "bg-rose-100 text-rose-700" :
-                            isSelected ? "bg-indigo-100 text-indigo-700 ring-1 ring-indigo-500" :
-                              "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}>{v}</button>
-                    );
-                  })}
-                </div>
-              )}
-              {q.type === "short_answer" && (
-                <input value={answers[q.id] || ""} onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
-                  disabled={submitted} placeholder="Your answer…"
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow" />
-              )}
               {submitted && q.explanation && (
                 <p className="text-xs text-slate-400 mt-1">💡 {q.explanation}</p>
               )}
@@ -274,19 +257,63 @@ export default function MicroTutor() {
             </div>
           ) : (
             history.map((h, i) => (
-              <div key={i} className="glass p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{h.topic}</p>
-                  <p className="text-xs text-slate-400">
-                    {h.created_at ? new Date(h.created_at).toLocaleString() : ""}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-lg font-bold ${h.score >= h.total ? "text-green-400" :
-                    h.score >= h.total * 0.7 ? "text-indigo-400" : "text-amber-400"
-                    }`}>{h.score}/{h.total}</p>
-                  <p className="text-xs text-slate-500">{Math.round((h.score / h.total) * 100)}%</p>
-                </div>
+              <div key={i} className="glass overflow-hidden">
+                <button
+                  onClick={() => setExpandedHistory(expandedHistory === i ? null : i)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                >
+                  <div className="text-left">
+                    <p className="font-medium">{h.topic}</p>
+                    <p className="text-xs text-slate-400">
+                      {h.created_at ? new Date(h.created_at).toLocaleString() : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className={`text-lg font-bold ${h.score >= h.total ? "text-green-400" :
+                        h.score >= h.total * 0.7 ? "text-indigo-400" : "text-amber-400"
+                        }`}>{h.score}/{h.total}</p>
+                      <p className="text-xs text-slate-500">{Math.round((h.score / h.total) * 100)}%</p>
+                    </div>
+                    <span className="text-slate-400 text-sm">{expandedHistory === i ? "▲" : "▼"}</span>
+                  </div>
+                </button>
+                {expandedHistory === i && h.answers && h.answers.length > 0 && (
+                  <div className="border-t border-slate-100 p-4 space-y-3 bg-slate-50/50">
+                    {h.answers.map((a, ai) => (
+                      <div key={ai} className={`p-3 rounded-lg border text-sm ${a.correct ? "bg-green-50 border-green-200" : "bg-rose-50 border-rose-200"}`}>
+                        <p className="font-medium text-slate-800 mb-1">
+                          Q{a.question_id || ai + 1}. {a.question || "Question not recorded"}
+                        </p>
+                        {a.options && a.options.length > 0 && (
+                          <div className="space-y-1 my-2">
+                            {a.options.map((opt, oi) => {
+                              const letter = opt.charAt(0);
+                              const isUserPick = letter === a.user_answer;
+                              const isCorrectOpt = letter === a.correct_answer;
+                              return (
+                                <div key={oi} className={`px-2 py-1 rounded text-xs ${isCorrectOpt ? "bg-green-100 text-green-800 font-medium" : isUserPick ? "bg-rose-100 text-rose-800 font-medium" : "text-slate-600"}`}>
+                                  {opt} {isCorrectOpt && "✓"} {isUserPick && !isCorrectOpt && "✗"}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <div className="flex gap-4 text-xs mt-1">
+                          <span className={a.correct ? "text-green-700" : "text-rose-700"}>
+                            Your answer: {a.user_answer || "—"} {a.correct ? "✓" : "✗"}
+                          </span>
+                          {!a.correct && a.correct_answer && (
+                            <span className="text-green-700">Correct: {a.correct_answer}</span>
+                          )}
+                        </div>
+                        {a.explanation && (
+                          <p className="text-xs text-slate-500 mt-1">💡 {a.explanation}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}

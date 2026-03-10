@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api } from "../api/client";
+import { api, API_BASE } from "../api/client";
 
 export default function Profile() {
   const [profile, setProfile] = useState({
@@ -70,7 +70,7 @@ export default function Profile() {
         <div className="flex items-center gap-6 pb-6 border-b border-slate-200">
           <div className="relative group w-24 h-24 rounded-full overflow-hidden bg-slate-100 border-4 border-white shadow-md flex-shrink-0">
             {userId ? (
-              <img src={`/api/users/${userId}/avatar?k=${avatarKey}`} alt="Avatar" className="w-full h-full object-cover"
+              <img src={`${API_BASE}/api/users/${userId}/avatar?k=${avatarKey}`} alt="Avatar" className="w-full h-full object-cover"
                 onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/7.x/notionists/svg?seed=student"; }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl">🧑‍🎓</div>

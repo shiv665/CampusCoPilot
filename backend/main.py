@@ -771,6 +771,28 @@ async def api_scan_notes(file: UploadFile = File(...), user_id: str = Depends(ge
     return JSONResponse(content={"text": text})
 
 
+class FormatNotesBody(BaseModel):
+    text: str = Field(..., min_length=1, max_length=50000)
+
+
+@app.post("/api/format-notes")
+async def api_format_notes(body: FormatNotesBody, user_id: str = Depends(get_current_user_id)):
+    """Use AI to clean up and format raw OCR-extracted text."""
+    from backend.services.llama_client import chat_completion
+    try:
+        formatted = await chat_completion(
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that cleans up and formats raw OCR-extracted text from handwritten notes or scanned documents. Fix spelling errors, add proper formatting with headings, bullet points, and paragraphs. Preserve all original content and meaning. Return ONLY the formatted text, no extra commentary."},
+                {"role": "user", "content": f"Please clean up and format the following raw extracted text:\n\n{body.text[:10000]}"},
+            ],
+            max_tokens=4096,
+        )
+        return JSONResponse(content={"formatted_text": formatted})
+    except Exception as e:
+        logger.exception("Failed to format notes")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class QuizBody(BaseModel):
     topic: str
     difficulty: str = "medium"

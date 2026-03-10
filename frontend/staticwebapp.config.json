@@ -6,7 +6,7 @@
             "/css/*"
         ]
     },
-    "route": [
+    "routes": [
         {
             "route": "/api/*",
             "rewrite": "https://campuscopilot-chhagnbhf9gpaqfm.southeastasia-01.azurewebsites.net/api/*"

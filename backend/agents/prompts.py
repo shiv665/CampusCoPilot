@@ -493,6 +493,8 @@ GENERATE_QUIZ_PROMPT = """Generate a quiz for the following topic.
 ### Relevant context (RAG)
 {rag_context}
 
+IMPORTANT: ALL questions MUST be multiple choice ("mcq") with exactly 4 options (A, B, C, D). Do NOT generate short_answer, descriptive, or true_false questions.
+
 Return a JSON object:
 ```json
 {{
@@ -510,22 +512,15 @@ Return a JSON object:
     }},
     {{
       "id": 2,
-      "type": "true_false",
-      "question": "Statement to evaluate",
-      "correct_answer": "True",
-      "explanation": "Why",
+      "type": "mcq",
+      "question": "Another question",
+      "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
+      "correct_answer": "C",
+      "explanation": "Why this answer is correct",
       "points": 1
-    }},
-    {{
-      "id": 3,
-      "type": "short_answer",
-      "question": "Question requiring a short answer",
-      "sample_answer": "Expected answer",
-      "keywords": ["key", "words", "to", "check"],
-      "points": 2
     }}
   ],
-  "total_points": 10,
+  "total_points": {num_questions},
   "time_limit_minutes": 10
 }}
 ```

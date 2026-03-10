@@ -201,10 +201,33 @@ export default function Squads() {
                                 <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow transition-shadow">
                                     <div className="font-semibold text-slate-800">{g.group_name}</div>
                                     <div className="text-xs text-slate-500 mt-1">{g.members.length} student(s) from this major are using CampusCoPilot.</div>
+                                    {g.members.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {g.members.map((m, mi) => (
+                                                <div key={mi} className="flex items-center gap-2 text-xs text-slate-600">
+                                                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white">
+                                                        {m.name?.charAt(0)?.toUpperCase() || "?"}
+                                                    </div>
+                                                    <span>{m.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="mt-3 flex flex-wrap gap-1.5">
                                         {g.subjects.map((sub, j) => (
                                             <span key={j} className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-700 font-medium border border-indigo-100 rounded-full">{sub}</span>
                                         ))}
+                                    </div>
+                                    <div className="mt-4 pt-3 border-t border-slate-100 flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setCreateForm({ name: `${g.university || ""} ${g.branch || ""} Study Group`.trim(), topic: g.subjects?.join(", ") || "", maxMembers: 10 });
+                                                setShowCreate(true);
+                                            }}
+                                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1"
+                                        >
+                                            <Plus size={14} /> Create Squad for this group
+                                        </button>
                                     </div>
                                 </div>
                             ))}
