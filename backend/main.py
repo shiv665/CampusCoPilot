@@ -328,34 +328,7 @@ async def api_generate_campaign(body: GenerateCampaignBody, user_id: str = Depen
         logger.exception("Failed to generate campaign")
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Unwrap stringified JSON
-    for _ in range(5):
-        if isinstance(campaign, str):
-            try:
-                campaign = json.loads(campaign)
-            except (ValueError, TypeError):
-                # Try repairing truncated JSON
-                from backend.services.llama_client import repair_truncated_json
-                repaired = repair_truncated_json(campaign)
-                if repaired:
-                    campaign = json.loads(repaired)
-                else:
-                    break
-        else:
-            break
-
-    # Unwrap wrapper keys
-    if isinstance(campaign, dict) and "weekly_plans" not in campaign:
-        for key in ("campaign", "study_campaign", "plan", "data"):
-            val = campaign.get(key)
-            if isinstance(val, str):
-                try:
-                    val = json.loads(val)
-                except (ValueError, TypeError):
-                    pass
-            if isinstance(val, dict) and "weekly_plans" in val:
-                campaign = val
-                break
+    campaign = _normalize_campaign_backend(campaign)
 
     await update_session_campaign(body.session_id, user_id, campaign)
     return JSONResponse(content={"campaign": campaign, "token_usage": get_token_usage()})
@@ -562,6 +535,71 @@ class GenerateSemesterCampaignBody(BaseModel):
     constraints: Optional[SemesterPlanConstraints] = None
 
 
+def _normalize_campaign_backend(campaign):
+    """Unwrap stringified JSON, wrapper keys, and alternative key names from LLM output."""
+    from backend.services.llama_client import repair_truncated_json
+
+    # Unwrap stringified JSON
+    for _ in range(5):
+        if isinstance(campaign, str):
+            try:
+                campaign = json.loads(campaign)
+            except (ValueError, TypeError):
+                repaired = repair_truncated_json(campaign)
+                if repaired:
+                    campaign = json.loads(repaired)
+                else:
+                    break
+        else:
+            break
+
+    # If the LLM returned a bare list of weeks, wrap it
+    if isinstance(campaign, list) and len(campaign) > 0 and isinstance(campaign[0], dict):
+        if "week_number" in campaign[0] or "days" in campaign[0]:
+            campaign = {"weekly_plans": campaign}
+
+    if not isinstance(campaign, dict):
+        return campaign
+
+    # Unwrap wrapper keys
+    if "weekly_plans" not in campaign:
+        for key in ("campaign", "study_campaign", "plan", "data", "result", "response", "study_plan"):
+            val = campaign.get(key)
+            if isinstance(val, str):
+                try:
+                    val = json.loads(val)
+                except (ValueError, TypeError):
+                    repaired = repair_truncated_json(val)
+                    if repaired:
+                        try:
+                            val = json.loads(repaired)
+                        except (ValueError, TypeError):
+                            continue
+                    else:
+                        continue
+            if isinstance(val, dict):
+                if "weekly_plans" in val:
+                    campaign = val
+                    break
+                # Check alternative keys inside wrapper
+                for alt in ("weeks", "schedule", "plans", "study_schedule"):
+                    if alt in val and isinstance(val[alt], list):
+                        val["weekly_plans"] = val.pop(alt)
+                        campaign = val
+                        break
+                if "weekly_plans" in campaign:
+                    break
+
+    # Handle alternative top-level key names for weekly_plans
+    if "weekly_plans" not in campaign:
+        for alt in ("weeks", "schedule", "plans", "study_schedule"):
+            if alt in campaign and isinstance(campaign[alt], list):
+                campaign["weekly_plans"] = campaign.pop(alt)
+                break
+
+    return campaign
+
+
 @app.post("/api/semester-plan/{plan_id}/generate-campaign")
 async def api_generate_semester_campaign(
     plan_id: str,
@@ -596,33 +634,7 @@ async def api_generate_semester_campaign(
         logger.exception("Failed to generate semester campaign")
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Unwrap stringified JSON
-    for _ in range(5):
-        if isinstance(campaign, str):
-            try:
-                campaign = json.loads(campaign)
-            except (ValueError, TypeError):
-                from backend.services.llama_client import repair_truncated_json
-                repaired = repair_truncated_json(campaign)
-                if repaired:
-                    campaign = json.loads(repaired)
-                else:
-                    break
-        else:
-            break
-
-    # Unwrap wrapper keys
-    if isinstance(campaign, dict) and "weekly_plans" not in campaign:
-        for key in ("campaign", "study_campaign", "plan", "data"):
-            val = campaign.get(key)
-            if isinstance(val, str):
-                try:
-                    val = json.loads(val)
-                except (ValueError, TypeError):
-                    pass
-            if isinstance(val, dict) and "weekly_plans" in val:
-                campaign = val
-                break
+    campaign = _normalize_campaign_backend(campaign)
 
     await update_semester_campaign(plan_id, user_id, campaign)
     return JSONResponse(content={"campaign": campaign, "token_usage": get_token_usage()})

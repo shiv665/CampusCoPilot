@@ -349,19 +349,23 @@ function DayCard({ weekIdx, day, index, completedTasks, onComplete }) {
 
       <div className="space-y-3 relative z-10">
         {(day.tasks ?? []).map((task, ti) => {
-          const isBreak = typeof task.task === 'string' && task.task.toLowerCase().includes('break');
+          const taskText = toStr(task.task ?? task, "Study task");
+          const timeSlot = toStr(task.time_slot, "");
+          const subject = toStr(task.subject, "");
+          const resourceHint = toStr(task.resource_hint, "");
+          const isBreak = taskText.toLowerCase().includes('break');
 
           if (isBreak) {
             return (
               <div key={ti} className="flex flex-col gap-1 text-sm bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl px-4 py-3 transition-colors shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-teal-700 font-medium font-mono text-xs bg-white px-2 py-0.5 rounded border border-teal-100 shadow-sm">
-                    {typeof task.time_slot === 'string' ? task.time_slot : (task.time_slot ? JSON.stringify(task.time_slot) : "Unscheduled")}
+                    {timeSlot || "Unscheduled"}
                   </span>
                   <span className="text-teal-600 text-lg">☕</span>
                 </div>
                 <div className="text-teal-800 mt-1 font-medium tracking-wide">
-                  {typeof task.task === 'string' ? task.task : JSON.stringify(task.task)}
+                  {taskText}
                 </div>
               </div>
             );
@@ -374,7 +378,7 @@ function DayCard({ weekIdx, day, index, completedTasks, onComplete }) {
             <div key={ti} className={`flex flex-col gap-1 text-sm bg-white hover:bg-slate-50 border ${isCompleted ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200'} rounded-xl px-4 py-3 transition-colors shadow-sm`}>
               <div className="flex items-center justify-between">
                 <span className="text-indigo-600 font-medium font-mono text-xs bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 shadow-sm">
-                  {typeof task.time_slot === 'string' ? task.time_slot : (task.time_slot ? JSON.stringify(task.time_slot) : "Unscheduled")}
+                  {timeSlot || "Unscheduled"}
                 </span>
                 {task.priority === "high" && !isCompleted && (
                   <span className="text-rose-600 text-xs font-bold bg-rose-50 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm border border-rose-100">
@@ -389,12 +393,12 @@ function DayCard({ weekIdx, day, index, completedTasks, onComplete }) {
               </div>
 
               <div className={`text-slate-700 mt-2 leading-relaxed ${isCompleted ? 'opacity-60' : ''}`}>
-                {task.subject && <span className="text-indigo-600 font-bold mr-2 text-xs uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded inline-block mb-1">{typeof task.subject === 'string' ? task.subject : JSON.stringify(task.subject)}</span>}<br />
-                <span className="font-medium text-[15px]">{typeof (task.task ?? task) === 'string' ? (task.task ?? task) : JSON.stringify(task.task ?? task)}</span>
+                {subject && <span className="text-indigo-600 font-bold mr-2 text-xs uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded inline-block mb-1">{subject}</span>}<br />
+                <span className="font-medium text-[15px]">{taskText}</span>
               </div>
-              {task.resource_hint && !isCompleted && (
+              {resourceHint && !isCompleted && (
                 <div className="mt-2 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 flex items-start gap-2">
-                  <span className="text-amber-500 mt-0.5">💡</span> <span>{typeof task.resource_hint === 'string' ? task.resource_hint : JSON.stringify(task.resource_hint)}</span>
+                  <span className="text-amber-500 mt-0.5">💡</span> <span>{resourceHint}</span>
                 </div>
               )}
 
@@ -489,34 +493,151 @@ function repairTruncatedJson(s) {
   }
 }
 
+/* ── Safely coerce any value to a display string ── */
+function toStr(val, fallback = "") {
+  if (val == null) return fallback;
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  // time_slot objects like { start: "09:00", end: "10:30" }
+  if (typeof val === "object" && val.start && val.end) return `${val.start}-${val.end}`;
+  // Objects with a name / title / description
+  if (typeof val === "object") {
+    return val.name || val.title || val.description || val.label || JSON.stringify(val);
+  }
+  return String(val);
+}
+
+/* ── Normalize a single task object ── */
+function normalizeTask(t) {
+  if (typeof t === "string") return { task: t, time_slot: "", priority: "medium" };
+  if (typeof t !== "object" || t === null) return { task: String(t ?? ""), time_slot: "", priority: "medium" };
+
+  const out = { ...t };
+
+  // Ensure task field is a string
+  if (out.task !== undefined) {
+    out.task = toStr(out.task, "Study task");
+  } else {
+    out.task = toStr(out.name || out.description || out.activity || out.title, "Study task");
+  }
+
+  // Ensure time_slot is a string
+  out.time_slot = toStr(out.time_slot || out.time || out.slot, "");
+
+  // Ensure subject is a string
+  if (out.subject !== undefined) out.subject = toStr(out.subject);
+
+  // Ensure resource_hint is a string
+  if (out.resource_hint !== undefined) out.resource_hint = toStr(out.resource_hint);
+
+  // Ensure priority is a string
+  if (out.priority !== undefined) out.priority = toStr(out.priority, "medium");
+
+  return out;
+}
+
+/* ── Normalize a day object ── */
+function normalizeDay(d) {
+  if (typeof d !== "object" || d === null) return null;
+  const out = { ...d };
+  // Resolve the day label
+  if (!out.day) out.day = toStr(out.date || out.label || out.name, "Day");
+  // Normalize tasks array
+  const rawTasks = out.tasks || out.activities || out.schedule || [];
+  out.tasks = (Array.isArray(rawTasks) ? rawTasks : [rawTasks]).map(normalizeTask);
+  return out;
+}
+
+/* ── Normalize a week object ── */
+function normalizeWeek(w) {
+  if (typeof w !== "object" || w === null) return null;
+  const out = { ...w };
+  // Resolve days array from various possible keys
+  let rawDays = out.days || out.schedule || out.daily_plans || out.daily_schedule || [];
+  if (!Array.isArray(rawDays)) rawDays = [rawDays];
+  out.days = rawDays.map(normalizeDay).filter(Boolean);
+  return out;
+}
+
+/* ── Try to find the weekly_plans array in any nested object ── */
+function findWeeklyPlans(obj, depth = 0) {
+  if (depth > 5 || typeof obj !== "object" || obj === null) return null;
+  // Check common key names for the array of weeks
+  for (const key of ["weekly_plans", "weeks", "schedule", "plans", "study_schedule", "weeklyPlans"]) {
+    if (Array.isArray(obj[key]) && obj[key].length > 0) return { parent: obj, key };
+  }
+  // Recurse one level into wrapper keys
+  for (const key of Object.keys(obj)) {
+    let val = obj[key];
+    if (typeof val === "string") {
+      try { val = JSON.parse(val); } catch { continue; }
+    }
+    if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+      const found = findWeeklyPlans(val, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 /* ── Normalize campaign ── */
 function normalizeCampaign(raw) {
   if (!raw) return null;
   let data = raw;
-  // Unwrap stringified JSON
+
+  // Unwrap stringified JSON (up to 5 levels)
   for (let i = 0; i < 5; i++) {
     if (typeof data === "string") {
       try {
         data = JSON.parse(data);
       } catch {
-        // Try repairing truncated JSON
         const repaired = repairTruncatedJson(data);
         if (repaired) { data = repaired; } else break;
       }
     } else break;
   }
+
   if (typeof data !== "object" || data === null) return raw;
-  if (data.weekly_plans) return data;
-  // Search nested wrapper keys
-  for (const key of ["campaign", "study_campaign", "plan", "data"]) {
+
+  // If the top-level IS an array of weeks, wrap it
+  if (Array.isArray(data)) {
+    if (data.length > 0 && (data[0].week_number != null || data[0].days || data[0].daily_plans)) {
+      data = { weekly_plans: data };
+    } else {
+      return { weekly_plans: [] };
+    }
+  }
+
+  // Search nested wrapper keys (string values that need parsing)
+  for (const key of ["campaign", "study_campaign", "plan", "data", "result", "response", "study_plan"]) {
     let val = data[key];
     if (typeof val === "string") {
       try { val = JSON.parse(val); } catch {
         const repaired = repairTruncatedJson(val);
-        if (repaired) val = repaired;
+        if (repaired) val = repaired; else continue;
       }
+      data[key] = val;
     }
-    if (val && typeof val === "object" && val.weekly_plans) return val;
   }
-  return data;
+
+  // Deep search for weekly_plans (or alternative keys)
+  const found = findWeeklyPlans(data);
+  let campaign;
+  if (found) {
+    const { parent, key } = found;
+    // Normalise into standard key
+    if (key !== "weekly_plans") {
+      parent.weekly_plans = parent[key];
+      delete parent[key];
+    }
+    campaign = parent;
+  } else {
+    // No weekly_plans anywhere – return as-is (FallbackRaw will render)
+    return data;
+  }
+
+  // Normalise each week → day → task
+  campaign.weekly_plans = campaign.weekly_plans.map(normalizeWeek).filter(Boolean);
+
+  return campaign;
 }
