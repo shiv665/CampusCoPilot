@@ -49,6 +49,7 @@ from backend.db import (
     ensure_indexes,
     find_user_by_email,
     find_user_by_id,
+    get_db,
     get_session,
     get_user_sessions,
     serialize_doc,
@@ -138,6 +139,26 @@ async def startup():
         await ensure_indexes()
     except Exception as e:
         logger.warning("Could not connect to MongoDB: %s — start MongoDB or set MONGO_URI in .env", e)
+
+    # ═══ DEMO: Seed a judge user so the app works out of the box ═══
+    try:
+        from backend.auth import TEST_USER_ID
+        user = await find_user_by_id(TEST_USER_ID)
+        if not user:
+            from bson import ObjectId as _OID
+            db = get_db()
+            await db.users.insert_one({
+                "_id": _OID(TEST_USER_ID),
+                "email": "judge@demo.com",
+                "name": "Judge",
+                "password_hash": hash_password("judge123"),
+                "created_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+            })
+            logger.info("Demo judge user seeded.")
+    except Exception as e:
+        logger.debug("Demo seed skipped: %s", e)
+    # ═══ END DEMO SEED ═══
+
     logger.info("CampusCoPilot v2 started.")
 
 
@@ -186,7 +207,7 @@ async def get_me(user_id: str = Depends(get_current_user_id)):
     # ═══ DEMO BYPASS: return test user if not found in DB ═══
     user = await find_user_by_id(user_id)
     if not user:
-        return {"id": "test-judge-user", "email": "judges@demo.com", "name": "Judges"}
+        return {"id": "000000000000000000judge1", "email": "judge@demo.com", "name": "Judge"}
     # ═══ END DEMO BYPASS ═══
     # ORIGINAL: raise HTTPException(status_code=404, detail="User not found.")
     return {"id": user["_id"], "email": user["email"], "name": user["name"]}
@@ -1187,11 +1208,18 @@ async def api_analytics(user_id: str = Depends(get_current_user_id)):
         for t, scores in topic_scores.items()
     ]
 
+    # Include recent task completions
+    recent_completions = await get_user_completions(user_id, limit=20)
+    # Include user sessions
+    sessions = await get_user_sessions(user_id)
+
     return {
         "metrics": metrics,
         "streak": streak,
         "topic_performance": topic_performance,
         "recent_quizzes": quiz_results[:10],
+        "recent_completions": recent_completions,
+        "sessions": sessions,
     }
 
 

@@ -79,7 +79,7 @@ export default function Analytics() {
           {recentTasks.slice(0, 10).map((t, i) => (
             <div key={i} className="flex items-center justify-between py-2 border-b border-slate-200 last:border-0">
               <div>
-                <p className="text-sm font-semibold text-slate-800">{t.task_name || t.topic || "Task"}</p>
+                <p className="text-sm font-semibold text-slate-800">{t.task || t.task_name || t.topic || "Task"}</p>
                 <p className="text-xs font-medium text-slate-500">{t.topic && `Topic: ${t.topic}`}</p>
               </div>
               <span className="text-xs font-semibold text-slate-400">{t.completed_at ? new Date(t.completed_at).toLocaleDateString() : ""}</span>
